@@ -1,4 +1,7 @@
-(ns arrayspace.domain)
+(ns arrayspace.domain
+  (:require 
+   [arrayspace.protocols :refer [Domain DomainMap]]
+   [arrayspace.core :refer [make-domain make-domain-map]]))
 
 (defn valid-coords? [coords shape]
   (and (= (count coords) (count shape))
