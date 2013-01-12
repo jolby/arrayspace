@@ -44,7 +44,7 @@
   (@*types* t))
 
 (defn resolve-type-size [t]
-  (get type-bytesize (resolve-type t) 64))
+  (get @*type-bytesize* (resolve-type t) 64))
 
 (defn required-storage-size [type count]
   (*  (/ (resolve-type-size type) Byte/SIZE)  count))

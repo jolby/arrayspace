@@ -49,5 +49,5 @@
 
 (defmethod make-domain-map :default
   [type-kw  & {:keys [domain distribution]}]
-  (LocalBlockDataMap. dom dist))
+  (LocalBlockDataMap. domain distribution))
                  

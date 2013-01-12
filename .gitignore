@@ -1,3 +1,4 @@
 scratch
 target
 resources/projects
+.lein-failures
