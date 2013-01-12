@@ -1,0 +1,249 @@
+* Introduction
+
+* Concept map
+
+| Concept                      | NumPy         | Blaze         | ZPL    | Chapele         | x10    | R | K | J | APL |
+|------------------------------+---------------+---------------+--------+-----------------+--------+---+---+---+-----|
+| Cartesian Coordinate Space   |               | Space & Shape | Region | Domain/IndexSet | Region |   |   |   |     |
+| Coordinates                  | x,y... coords | Index         |        |                 | Point  |   |   |   |     |
+| Mapping of coords to storage |               | Layout        |        | DomainMap       |        |   |   |   |     |
+|------------------------------+---------------+---------------+--------+-----------------+--------+---+---+---+-----|
+| Low Level Storage            | buffer        | ByteProvider  |        | Locale          |        |   |   |   |     |
+| Storage Distribution         |               |               |        | Distribution    |        |   |   |   |     |
+
+
+* Core Abstractions
+  
+** Data Format/Storage/Layout/Location abstractions
+
+*** Locale/Distribution/ByteProvider
+    - Aggregate
+
+*** DataDescriptor (ElementDescriptor?)
+    - Elementwise
+    - binary layout per-element
+
+****  DataType (ElementType?) Descriptor heirarchy
+
+
+
+
+** DomainMap
+   - Dependent on Locale, DataDescriptor, Domain
+   - Data providers must provide each impl
+   - Maps from domain coord space to Locale byte locations for elements
+
+*** Generic function make-domain-map
+    - kwds: :locale, :data-descriptor, :domain
+
+** IndexSpace/Domain/DataSpace Abstractions
+   - Cartesion Coords
+   - Optional "Rich Index" (categorical/associative/???...) Coords
+   - Maybe low-level numeric coords Array and rich indexing for table types a
+     la Blaze?
+
+** Range/Coord/Point Abstractions
+
+
+** MultiArray object Abstractions
+   - getitem/getslice ops
+   - setitem/setslice ops for mutable arrays
+
+** Elwise op HLF
+   - unary-elwise-op, binary-elwise-op(two arrays), n-ary-elwise-op
+
+** Specializers/ExpressionCompilers/Kernels
+   - runtime form builder interface. Build form/compile/memoize/invoke.
+
+   - getitem/getslice/setitem/setslice op forms
+
+   - forms to transform coords to low-level byte address per-domain-map/locale
+
+   - unary-elwise-op, binary-elwise-op(two arrays), n-ary-elwise-op
+     - :in :out array params for optional in-place/reuse usage patterns
+     - Form to construct outer loop with offset+shape/stride vars bound
+     - Form to build inc step given above offset+shape/stride vars inline in
+       loop (inc-expr)
+
+
+
+* Chapele
+
+** Locales
+   At the lowest level of Chapel’s concept stack are locality-oriented
+   features. Their goal is to permit users to reason about the placement and
+   afﬁnity of data and tasks on a large-scale distributed-memory machine. The
+   central concept in this area is the locale type.
+
+   A locale abstractly represents a unit of the target architecture that
+   supports processing and storage. On conventional machines, a locale is
+   typically deﬁned to be a single node, its memory, and its multicore/SMP
+   processors. Chapel programmers can reference a built-in array of locales
+   that represents the compute resources on which their program is running.
+   They can make queries about the compute resources via a number of methods on
+   the locale type. In addition, they can control the placement of variables
+   and tasks on the machine’s nodes using on-clauses, either in an explicit or
+   data-driven manner.
+
+** Domain
+   Chapel arrays are deﬁned using a domain--a ﬁrst-class language concept
+   representing an index set. Chapel’s domains are a generalization of the
+   region concept pioneered by the ZPL language. In Chapel, domains can be
+   named, assigned, and passed between functions. Domains support iteration,
+   intersection, set-oriented queries, and operations for creating other
+   domains. They are also used to declare, slice, and reallocate arrays
+
+
+*** DomainMap/Index Set
+    Chapel domain maps specify the implementation of domains and their
+    associated arrays in the Chapel language. If a domain map targets a single
+    locale’s memory, it is called a layout. If the domain map targets a number
+    of locales we refer to it as a distribution
+
+    Creating a user-deﬁned domain map in Chapel involves writing a set of three
+    descriptors that collectively implement Chapel’s Domain map Standard
+    Interface (or DSI for short).
+
+    The three descriptors are used to represent the Chapel concepts of (1)
+    domain map, (2) domain, and (3) array, respectively.
+
+**** Domain Map Descriptor
+     The domain map descriptor stores any state required to characterize the
+     domain map as a whole. Examples might include whether the domain map uses
+     a row- or columnmajor-order storage layout; the indices to be blocked
+     between locales for a block distribution; the start index for a cyclic or
+     block-cyclic distribution; the block size to be used in a tiled layout or
+     block-cyclic distribution; or the tree of cutting planes used for a
+     multidimensional recursive bisection. For distributions, the global domain
+     map descriptor will also typically store the set of locales that is being
+     targeted.
+
+***** Domain Map Descriptor routines
+      - Index Ownership 
+      The domain map descriptor must support a method, dsiIndexToLocale() which
+      takes an index as an argument and returns the locale that owns the index.
+      This is used to implement the idxToLocale query that Chapel users can
+      make to determine where a speciﬁc index is stored.
+
+      - Domain Descriptor Creation
+
+
+**** Domain Descriptor
+     A domain descriptor is used to represent each domain value in a Chapel
+     program. As such, its main responsibility is to store a representation of
+     the domain’s index set. For layouts and regular domains, the complete
+     index set representation is typically stored directly within the
+     descriptor. For distributions of irregular domains that require
+     O(numIndices) storage to represent the index set, a distribution will
+     typically store only summarizing information in its global descriptor. The
+     representation of the complete index set is spread between its associated
+     local descriptors in order to achieve scalability     
+
+***** Domain Descriptor Routines
+      - Query/Modifiy IndexSet 
+      A domain descriptor must support certain methods that permit its index
+      set to be queried and modiﬁed. To implement assignment of rectangular
+      domains, the Chapel compiler generates a call to dsiGetIndices() on the
+      source domain descriptor, passing the result to dsiSetIndices() on the
+      target domain. These routines return and accept a tuple of ranges to
+      represent the index set in an implementation-independent representation.
+      This supports assignments between domains with distinct distributions or
+      layouts.
+       
+      - Query Index Set Properties 
+      Domain descriptors also support a number of methods that implement
+      queries on the domain’s index set. For example, dsiMember() queries
+      whether or not its argument index is a member of the domain’s index set.
+      It is used for operations like array bounds checking and user membership
+      queries. Another routine, dsiNumIndices(), is used to query the size of a
+      domain’s index set. Rectangular domains support additional queries to
+      determine the bounds and strides of their dimensions.
+
+      - Iterators 
+      Domain descriptors must provide serial and parallel iterators that
+      generate all of the indices described by their index set. The compiler
+      generates invocations of these iterators to implement serial and parallel
+      loops over domain values. Parallel iterators for distributions will
+      typically be written such that each locale generates the local indices
+      that it owns. Parallel iteration is a fairly advanced topic in Chapel due
+      to its use of a novel leader/follower iterator strategy to support
+      zippered parallel iteration, which is beyond the scope of this paper.
+
+      - Create Array Descriptors 
+      Domain descriptors serve as factories for array descriptors via the
+      dsiBuildArray() method. This call takes the array’s element type as its
+      argument and is generated by the compiler whenever a new array variable
+      is created. The dsiBuildArray() routine allocates storage for the array
+      elements and returns the array descriptor that will serve as the runtime
+      representation of the array. If applicable, dsiBuildArray() also
+      allocates the local array descriptors which, in turn, allocate local
+      array storage
+
+**** Array Descriptor
+     Each array value in a Chapel program is represented by an array descriptor
+     at runtime. As such, its state must represent the collection of variables
+     representing the array’s elements. Since arrays require O(numElements)
+     storage by deﬁnition, distributions will typically farm the storage for
+     these variables out to the local descriptors, while layouts will typically
+     store the array elements directly within the descriptor. The actual array
+     elements are typically stored within a descriptor using a non-distributed
+     array declared over a domain ﬁeld from the corresponding domain
+     descriptor.
+     
+
+***** Array Descriptor Routines
+      - Array indexing 
+      The dsiAccess() method implements random access into the array, taking an
+      index as its argument. It determines which array element variable the
+      index corresponds to and returns a reference to it. In the most general
+      case, this operation may require consulting the domain and/or domain map
+      descriptors to locate the array element’s locale and memory location.
+      
+      - Iterators 
+      The array descriptor must provide serial and parallel iterators to
+      generate references to its array elements. Invocations of these iterators
+      are generated by the compiler to implement serial and parallel loops over
+      the corresponding array. As with domains, the parallel iterator will
+      typically yield each array element from the locale on which it is stored.
+      
+      - Slicing, Reindexing, and Rank Change 
+      Chapel supports array slicing, reindexing, and rank change operators that
+      can be used to refer to a subarray of values, potentially using a new
+      index set. These are supported on array descriptors using the dsiSlice(),
+      dsiReindex() and dsiRankChange() methods, respectively. Each of these
+      methods returns a new array descriptor whose variables alias the elements
+      stored by the original array descriptor. In the case of reindexing and
+      rank change, new domain and/or domain map descriptors may also need to be
+      created to describe the new index sets and mappings.
+
+*** Layout
+    Layouts tend to focus on details like how a domain’s indices or array’s
+    elements are stored in memory; or how a parallel iteration over the domain
+    or array should be implemented using local processor resources.
+    Distributions specify those details as well, but also map the indices and
+    elements to distinct locales. In particular, a distribution maps a complete
+    index space—such as the set of all 2D 64-bit integer indices—to a
+    user-speciﬁed set of target locales. When multiple domains share a single
+    distribution, they are considered to be aligned since a given index will
+    map to the same locale for each domain. Just as domains permit the
+    amortization of overheads associated with index sets across multiple
+    arrays, distributions support the amortization of overheads associated with
+    distributing aligned index sets. An array’s elements are mapped to locales
+    according to its deﬁning domain’s domain map. In this way, a single domain
+    map can be used to declare several domains, while each domain can in turn
+    deﬁne multiple arrays. Chapel also supports subdomain declarations, which
+    support semantic reasoning about index subsets.
+
+*** Distribution
+
+** Arrays
+   Creation flow:
+   Distribution --> [Domain / DomainMap] --> Array
+
+   A Chapel array is a one-to-one mapping from an index set
+   to a set of variables of arbitrary but homogeneous type.
+
+   Chapel arrays are implemented in terms of domain maps, most of which are
+   themselves implemented using simpler domains and arrays. To break this
+   cycle, Chapel supports a default array layout that is implemented in terms
+   of a Cstyle primitive data buffer
