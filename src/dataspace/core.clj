@@ -39,5 +39,3 @@
   "MultiArray construction. Implementors define methods on this for each
   MultiArray type"
   (fn [type & kwargs] type))
-
-
