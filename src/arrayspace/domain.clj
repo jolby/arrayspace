@@ -1,4 +1,4 @@
-(ns dataspace.domain)
+(ns arrayspace.domain)
 
 (defn valid-coords? [coords shape]
   (and (= (count coords) (count shape))

@@ -1,7 +1,7 @@
-(ns dataspace.multiarray
+(ns arrayspace.multiarray
   (:require 
-   [dataspace.protocols :refer [IndexedAccess]]
-   [dataspace.core
+   [arrayspace.protocols :refer [IndexedAccess]]
+   [arrayspace.core
     :refer [make-domain make-domain-map make-distribution make-multi-array]]))
 
 (defrecord LocalMultiArray

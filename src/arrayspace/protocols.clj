@@ -1,4 +1,4 @@
-(ns dataspace.protocols)
+(ns arrayspace.protocols)
 
 (defprotocol Domain
   "A Domain represents an index set. Domains are a generalization of the region

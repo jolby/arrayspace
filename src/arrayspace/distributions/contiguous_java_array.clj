@@ -1,7 +1,7 @@
-(ns dataspace.distributions.contiguous-java-array
-  (:require [dataspace.protocols :refer [Distribution LinearIndexedAccess]]
-            [dataspace.core :refer [make-distribution]]
-            [dataspace.types :refer [resolve-type resolve-type-size]]))
+(ns arrayspace.distributions.contiguous-java-array
+  (:require [arrayspace.protocols :refer [Distribution LinearIndexedAccess]]
+            [arrayspace.core :refer [make-distribution]]
+            [arrayspace.types :refer [resolve-type resolve-type-size]]))
 ;;
 ;; Simple basic type used in local computations
 ;;

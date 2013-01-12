@@ -1,4 +1,4 @@
-(ns dataspace.types)
+(ns arrayspace.types)
 
 (def primitive-types  
   #{Boolean/TYPE  Character/TYPE Byte/TYPE  Short/TYPE  Integer/TYPE  Long/TYPE  Float/TYPE  Double/TYPE boolean char byte short int long float double})
@@ -48,4 +48,3 @@
 
 (defn required-storage-size [type count]
   (*  (/ (resolve-type-size type) Byte/SIZE)  count))
-

@@ -1,4 +1,4 @@
-(ns dataspace.core)
+(ns arrayspace.core)
 
 (defn mget 
   "Gets a value from an array at a specified position. Supports any number of dimensions."

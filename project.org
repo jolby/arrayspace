@@ -4,7 +4,7 @@
 
 | Concept                      | NumPy         | Blaze         | ZPL    | Chapele         | x10    | R | K | J | APL |
 |------------------------------+---------------+---------------+--------+-----------------+--------+---+---+---+-----|
-| Cartesian Coordinate Space   |               | Space & Shape | Region | Domain/IndexSet | Region |   |   |   |     |
+| Cartesian Coordinate Space   | shape tuple   | Space & Shape | Region | Domain/IndexSet | Region |   |   |   |     |
 | Coordinates                  | x,y... coords | Index         |        |                 | Point  |   |   |   |     |
 | Mapping of coords to storage |               | Layout        |        | DomainMap       |        |   |   |   |     |
 |------------------------------+---------------+---------------+--------+-----------------+--------+---+---+---+-----|
@@ -24,9 +24,6 @@
     - binary layout per-element
 
 ****  DataType (ElementType?) Descriptor heirarchy
-
-
-
 
 ** DomainMap
    - Dependent on Locale, DataDescriptor, Domain
@@ -65,9 +62,7 @@
      - Form to build inc step given above offset+shape/stride vars inline in
        loop (inc-expr)
 
-
-
-* Chapele
+* Study of Chapele language
 
 ** Locales
    At the lowest level of Chapel’s concept stack are locality-oriented

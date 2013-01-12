@@ -1,8 +1,8 @@
-(ns dataspace.distributions.contigous-buffer
+(ns arrayspace.distributions.contigous-buffer
   (:require 
-   [dataspace.protocols :refer [Distribution LinearIndexedAccess]]
-   [dataspace.core :refer [make-distribution]]
-   [dataspace.types :refer [resolve-type required-storage-size]])
+   [arrayspace.protocols :refer [Distribution LinearIndexedAccess]]
+   [arrayspace.core :refer [make-distribution]]
+   [arrayspace.types :refer [resolve-type required-storage-size]])
   (:import (java.nio ByteBuffer)))
 
 (defrecord ByteBufferDistribution
