@@ -1,0 +1,13 @@
+* Introduction
+  This is an experimental n-dimensional array implementation in Clojure. Based
+  on ideas from the Blaze project, the Chapele language, the ZPL language and
+  others.
+
+
+* Further Reading
+
+  - Blaze (next generation numpy): http://blaze.pydata.org/docs/
+
+  - Chapele http://chapel.cray.com/index.html
+
+  - ZPL http://www.cs.washington.edu/research/zpl/home/index.html
