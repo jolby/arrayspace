@@ -9,16 +9,14 @@
   ([m x y & more]
     (.mget m (cons x (cons y more)))))
 
-(defn mset 
+(defn mset!
   "Sets a value from an array at a specified position. Supports any number of dimensions."
   ([m x val]
-    (mset m [x] val))
+    (.mset! m (if (or (seq? x) (vector? x)) x [x]) val))
   ([m x y val]
-    (mset m [x y] val))
-  ;;XXX--needs more thought
-  ;;([m x y & more]
-  ;;  (mset m (cons x (cons y more)) val))
-  )
+    (.mset! m [x y] val))
+  ([m x y z & more]
+     (.mset! m (cons x (cons y (cons z (butlast more)))) (last more))))
 
 (defmulti make-domain
   "Domain construction. Implementors define methods on this for each

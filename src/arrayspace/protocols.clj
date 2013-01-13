@@ -80,7 +80,7 @@ provide information about low level storage and layout details"
 
 (defprotocol LinearIndexedMutation
   "Protocol for indexed write access to arrays of any dimensions."
-  (set-id! [m idx val]))
+  (set-1d! [m idx val]))
 
 (defprotocol Sliceable
   "Protocol for taking slices of arrays of any dimensions"

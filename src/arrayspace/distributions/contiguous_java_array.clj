@@ -1,5 +1,5 @@
 (ns arrayspace.distributions.contiguous-java-array
-  (:require [arrayspace.protocols :refer [Distribution LinearIndexedAccess]]
+  (:require [arrayspace.protocols :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
             [arrayspace.core :refer [make-distribution]]
             [arrayspace.types :refer [resolve-type resolve-type-size]]))
 ;;
@@ -14,7 +14,10 @@
      :size size-in-bytes})
   LinearIndexedAccess
   (get-1d [this idx]
-    (aget array idx)))
+    (aget array idx))
+  LinearIndexedMutation
+  (set-1d! [this idx val]
+    (aset array idx val)))
 
 (defmethod make-distribution :default 
   [type-kw & {:keys [count type]}]

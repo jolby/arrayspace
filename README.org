@@ -53,7 +53,7 @@
 | Coordinates                  | x,y... coords | Index         |        |                 | Point  |   |   |   |     |
 | Mapping of coords to storage |               | Layout        |        | DomainMap       |        |   |   |   |     |
 |------------------------------+---------------+---------------+--------+-----------------+--------+---+---+---+-----|
-| Low Level Storage            | buffer        | ByteProvider  |        | Locale          |        |   |   |   |     |
+| Low Level Storage            | buffer        | ByteProvider  |        | Locale          | Place  |   |   |   |     |
 | Storage Distribution         |               |               |        | Distribution    |        |   |   |   |     |
 
 
@@ -62,5 +62,9 @@
   - Blaze (next generation numpy): http://blaze.pydata.org/docs/
 
   - Chapele http://chapel.cray.com/index.html
+
+  - x10 http://x10-lang.org/
+
+  - Fortress http://en.wikipedia.org/wiki/Fortress_(programming_language)
 
   - ZPL http://www.cs.washington.edu/research/zpl/home/index.html

@@ -1,9 +1,10 @@
 (ns arrayspace.distributions.contigous-buffer
   (:require 
-   [arrayspace.protocols :refer [Distribution LinearIndexedAccess]]
+   [arrayspace.protocols :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
    [arrayspace.core :refer [make-distribution]]
    [arrayspace.types :refer [resolve-type required-storage-size]])
-  (:import (java.nio ByteBuffer)))
+  (:import (java.nio ByteBuffer CharBuffer ShortBuffer 
+                     IntBuffer LongBuffer FloatBuffer DoubleBuffer)))
 
 (defrecord ByteBufferDistribution
     [^ByteBuffer buf]
@@ -14,10 +15,13 @@
      :size (.capacity buf)})
   LinearIndexedAccess
   (get-1d [this idx]
-    (.get buf idx)))
+    (.get buf idx))
+  LinearIndexedMutation
+  (set-1d! [this idx val]
+    (.put buf idx val)))
 
 (defrecord CharBufferDistribution
-    [^ByteBuffer buf]
+    [^CharBuffer buf]
   Distribution
   (descriptor [this] 
     {:type (type this)
@@ -25,10 +29,13 @@
      :size (.capacity buf)})
   LinearIndexedAccess
   (get-1d [this idx]
-    (.getChar buf idx)))
+    (.get buf idx))
+  LinearIndexedMutation
+  (set-1d! [this idx val]
+    (.put buf idx val)))
 
 (defrecord ShortBufferDistribution
-    [^ByteBuffer buf]
+    [^ShortBuffer buf]
   Distribution
   (descriptor [this] 
     {:type (type this)
@@ -36,10 +43,13 @@
      :size (.capacity buf)})
   LinearIndexedAccess
   (get-1d [this idx]
-    (.getShort buf idx)))
+    (.get buf idx))
+  LinearIndexedMutation
+  (set-1d! [this idx val]
+    (.put buf idx val)))
 
 (defrecord IntBufferDistribution
-    [^ByteBuffer buf]
+    [^IntBuffer buf]
   Distribution
   (descriptor [this] 
     {:type (type this)
@@ -47,10 +57,13 @@
      :size (.capacity buf)})
   LinearIndexedAccess
   (get-1d [this idx]
-    (.getInt buf idx)))
+    (.get buf idx))
+  LinearIndexedMutation
+  (set-1d! [this idx val]
+    (.put buf idx val)))
 
 (defrecord LongBufferDistribution
-    [^ByteBuffer buf]
+    [^LongBuffer buf]
   Distribution
   (descriptor [this] 
     {:type (type this)
@@ -58,10 +71,13 @@
      :size (.capacity buf)})
   LinearIndexedAccess
   (get-1d [this idx]
-    (.getLong buf idx)))
+    (.get buf idx))
+  LinearIndexedMutation
+  (set-1d! [this idx val]
+    (.put buf idx val)))
 
 (defrecord FloatBufferDistribution
-    [^ByteBuffer buf]
+    [^FloatBuffer buf]
   Distribution
   (descriptor [this] 
     {:type (type this)
@@ -69,10 +85,13 @@
      :size (.capacity buf)})
   LinearIndexedAccess
   (get-1d [this idx]
-    (.getFloat buf idx)))
+    (.get buf idx))
+  LinearIndexedMutation
+  (set-1d! [this idx val]
+    (.put buf idx val)))
 
 (defrecord DoubleBufferDistribution
-    [^ByteBuffer buf]
+    [^DoubleBuffer buf]
   Distribution
   (descriptor [this] 
     {:type (type this)
@@ -80,7 +99,10 @@
      :size (.capacity buf)})
   LinearIndexedAccess
   (get-1d [this idx]
-    (.getDouble buf idx)))
+    (.get buf idx))
+  LinearIndexedMutation
+  (set-1d! [this idx val]
+    (.put buf idx val)))
 
 (defn cast-buffer-type [buf type]
   (case (.getName type)
@@ -92,11 +114,22 @@
     "float" (.asFloatBuffer buf)
     "double" (.asDoubleBuffer buf)))
 
+(defn distribution-for-type [buf type]
+  (case (.getName type)
+    "byte" (ByteBufferDistribution. buf)
+    "char" (CharBufferDistribution. (cast-buffer-type buf type))
+    "short" (ShortBufferDistribution. (cast-buffer-type buf type))
+    "int" (IntBufferDistribution. (cast-buffer-type buf type))
+    "long" (LongBufferDistribution. (cast-buffer-type buf type))
+    "float" (FloatBufferDistribution. (cast-buffer-type buf type))
+    "double" (DoubleBufferDistribution. (cast-buffer-type buf type))))
+
+
 (defn make-buffer-distribution
   [count type]
   (let [type (resolve-type type)
         buf (ByteBuffer/allocate (required-storage-size type count))]    
-    (ByteBufferDistribution. (cast-buffer-type buf type))))
+    (distribution-for-type buf type)))
 
 (defmethod make-distribution :local-byte-buffer 
   [type-kw & {:keys [count type]}]
