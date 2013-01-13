@@ -228,7 +228,7 @@
     map can be used to declare several domains, while each domain can in turn
     deﬁne multiple arrays. Chapel also supports subdomain declarations, which
     support semantic reasoning about index subsets.
-
+    
 *** Distribution
 
 ** Arrays

@@ -18,11 +18,11 @@
 
 (defmethod make-distribution :default 
   [type-kw & {:keys [count type]}]
-  (let [arr (make-array (resolve-type type) (*  (/ (resolve-type-size type) Byte/SIZE)  count))]
+  (let [arr (make-array (resolve-type type) count)]
     (ContiguousJavaArrayDistribution. arr count)))
 
 (defmethod make-distribution :local-1d-java-array 
   [type-kw & {:keys [count type]}]
-  (let [arr (make-array (resolve-type type) (*  (/ (resolve-type-size type) Byte/SIZE)  count))]
+  (let [arr (make-array (resolve-type type) count)]
     (ContiguousJavaArrayDistribution. arr count)))
 
