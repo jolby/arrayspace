@@ -4,6 +4,18 @@
   others.
 
 
+* Concept map
+
+| Concept                      | NumPy         | Blaze         | ZPL    | Chapele         | x10    | R | K | J | APL |
+|------------------------------+---------------+---------------+--------+-----------------+--------+---+---+---+-----|
+| Cartesian Coordinate Space   | shape tuple   | Space & Shape | Region | Domain/IndexSet | Region |   |   |   |     |
+| Coordinates                  | x,y... coords | Index         |        |                 | Point  |   |   |   |     |
+| Mapping of coords to storage |               | Layout        |        | DomainMap       |        |   |   |   |     |
+|------------------------------+---------------+---------------+--------+-----------------+--------+---+---+---+-----|
+| Low Level Storage            | buffer        | ByteProvider  |        | Locale          |        |   |   |   |     |
+| Storage Distribution         |               |               |        | Distribution    |        |   |   |   |     |
+
+
 * Further Reading
 
   - Blaze (next generation numpy): http://blaze.pydata.org/docs/
