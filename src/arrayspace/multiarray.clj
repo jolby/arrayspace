@@ -5,7 +5,8 @@
     :refer [make-domain make-domain-map make-distribution make-multi-array]]
    [arrayspace.domain :refer [element-count-of-shape]]
    [arrayspace.distributions.contiguous-java-array]
-   [arrayspace.distributions.contiguous-buffer]))
+   [arrayspace.distributions.contiguous-buffer]
+   ))
 
 (defrecord LocalMultiArray
     [domain data-map distribution]  

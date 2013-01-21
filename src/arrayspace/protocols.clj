@@ -1,5 +1,9 @@
 (ns arrayspace.protocols)
 
+(defprotocol Range
+  (lower-bound [this] "Return the lower bound of this range")
+  (upper-bound [this] "Return the upper bound of this range"))
+
 (defprotocol Domain
   "A Domain represents an index set. Domains are a generalization of the region
    concept pioneered by the ZPL language. Domains can be named, assigned, and
@@ -46,18 +50,6 @@
     "Return the descriptor containing low-level storage and
   layout information for this Distribution"))
 
-(defprotocol DataDescriptor
-  "Provides LowLevel information (size, byte-layout) of each element in a
-Domain's coordinate space. DataDescriptor's are dependent on their Locale to
-provide information about low level storage and layout details"
-  (element-class [this]
-    "returns the class of the elements of x")
-  (element-size [this]
-    "Size in bytes of each element")
-  (data-format [this]
-    "#{:row-major :column-major} Order/format elements are layed out in memory: "
-    ":row-major (C-lang), :column-major (Fortran)"))
-
 (defprotocol Reshapeable
   ""
   (reshape [this shape]))
@@ -86,3 +78,24 @@ provide information about low level storage and layout details"
   "Protocol for taking slices of arrays of any dimensions"
   (slice [this start stop] [start stop])
   (slice [this start stop stride] [start stop stride]))
+
+
+(defprotocol DataDescriptor
+  "Provides LowLevel information (size, byte-layout) of each element in a
+Domain's coordinate space. DataDescriptor's are dependent on their Locale to
+provide information about low level storage and layout details"
+  (element-class [this]
+    "returns the class of the elements of x")
+  (element-size [this]
+    "Size in bytes of each element")
+  (data-format [this]
+    "#{:row-major :column-major} Order/format elements are layed out in memory: "
+    ":row-major (C-lang), :column-major (Fortran)"))
+
+(defprotocol ValueRecord
+  "Protocol for pure value types"
+  (get-field [this kw] "Return field matched to kw"))
+
+(defprotocol AggregateValueRecord
+  "Protocol for pure value type that is part of a linearly addressable sequence of the same type"
+  (set-index [this ^long idx]))

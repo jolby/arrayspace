@@ -1,5 +1,6 @@
 * Introduction
 
+
 * Concept map
 
 | Concept                      | NumPy         | Blaze         | ZPL    | Chapele         | x10    | R | K | J | APL |
@@ -61,6 +62,7 @@
      - Form to construct outer loop with offset+shape/stride vars bound
      - Form to build inc step given above offset+shape/stride vars inline in
        loop (inc-expr)
+
 
 * Study of Chapele language
 
