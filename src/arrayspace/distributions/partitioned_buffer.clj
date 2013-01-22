@@ -1,4 +1,4 @@
-(ns dataspace.distributions.partitioned_buffer
+(ns arrayspace.distributions.partitioned_buffer
     (:require 
      [arrayspace.protocols :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
      [arrayspace.core :refer [make-distribution]]
@@ -101,7 +101,6 @@
         count-per-buf (/ count partition-count)
         chunk-storage-size (required-storage-size type count-per-buf)
         buffer-chunks (make-partition-chunks partition-count count-per-buf chunk-storage-size)]
-    ;;(distribution-for-type buf type)
     (PartitionedIntBufferDistribution. buffer-chunks count)))
 
 (defmethod make-distribution :partitioned-byte-buffer 
