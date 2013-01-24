@@ -17,7 +17,7 @@ with each dim having count-per-dim elements"
 (defn n-dim-indx
   "Create n-dim index with last dim of value idx"
   [dim idx]
-  (map vec (reductions conj `(~idx) (take (dec dim) (repeat 0)))))
+  (map vec (reductions conj (list idx) (take (dec dim) (repeat 0)))))
 
 (defn jarr [type shape]
   (make-multi-array :default :type type :shape shape))
@@ -39,7 +39,7 @@ with each dim having count-per-dim elements"
 ;;
 (def ^:dynamic *primitive-types* [byte char short int long float double])
 
-(def ^:dynamic *type-vals* [(byte 2) (char 2) (short 2)
+(def ^:dynamic *type-vals* [(byte 2) (char \a) (short 2)
                   (int 2) (long 2) (float 2.2) (double 2.2)])
 
 (def ^:dynamic *shapes* (n-dim-progression 5 5))
