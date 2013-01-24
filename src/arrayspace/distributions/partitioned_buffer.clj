@@ -8,24 +8,10 @@
      [arrayspace.distributions.contiguous-buffer
       :refer [cast-buffer-type distribution-for-type make-buffer-distribution]]))
 
-(defn binary-search
-  "Finds earliest occurrence of x in xs (a vector) using binary search."
-  ([xs x]
-     (loop [l 0 h (unchecked-dec (count xs))]
-       (if (<= h (inc l))
-         (cond
-           (== x (xs l)) l
-           (== x (xs h)) h
-           :else nil)
-         (let [m (unchecked-add l (bit-shift-right (unchecked-subtract h l) 1))]
-           (if (< (xs m) x)
-             (recur (unchecked-inc m) h)
-             (recur l m)))))))
-
 (defn binary-range-search
   "Find element whose low/hi indicies contain idx"
   [col ^long idx contains-fn lt-fn]
-  (loop [low 0 
+  (loop [low 0
          hi (unchecked-dec (count col))
          low-el (nth col low)
          hi-el (nth col hi)]
