@@ -2,14 +2,16 @@
   (:require
    [clojure.test :refer :all]
    [arrayspace.multiarray :refer :all]
-   [arrayspace.core :refer [mget mset! make-multi-array]]))
+   [arrayspace.core :refer [mget mset! make-distribution make-multi-array]]
+   [arrayspace.domain :refer [element-count-of-shape]]
+   [arrayspace.distributions.partitioned-buffer]))
 
 ;;
 ;; Utility functions
 ;;
 
 (defn n-dim-progression
-  "Create a progression of dimensions from 1 to dim 
+  "Create a progression of dimensions from 1 to dim
 with each dim having count-per-dim elements"
   [dim count-per-dim]
   (reductions conj [count-per-dim] (take (dec dim) (repeat count-per-dim))))
@@ -25,14 +27,29 @@ with each dim having count-per-dim elements"
 (defn buffarr [type shape]
   (make-multi-array :local-byte-buffer :type type :shape shape))
 
+(defn pbuffarr [type shape]
+  (let [element-count (element-count-of-shape shape)
+        pdist (make-distribution :partitioned-byte-buffer
+                                 :type type
+                                 :element-count element-count
+                                 :partition-count (count shape))]
+    (make-multi-array :partitioned-byte-buffer
+                      :type type
+                      :shape shape
+                      :element-count element-count
+                      :distribution pdist)))
+
 (defn test-mget-for-type [type type-val shape shape-idx]
   (let [a (jarr type shape)
-        buf (buffarr type shape)]
+        buf (buffarr type shape)
+        pbuf (pbuffarr type shape)]
     (mset! a shape-idx type-val)
     (mset! buf shape-idx type-val)
-        (are [x y] (= x y)
-             type-val (mget a shape-idx)
-             type-val (mget buf shape-idx))))
+    (mset! pbuf shape-idx type-val)
+    (are [x y] (= x y)
+         type-val (mget a shape-idx)
+         type-val (mget buf shape-idx)
+         type-val (mget pbuf shape-idx))))
 
 ;;
 ;; Fixtures
@@ -53,6 +70,10 @@ with each dim having count-per-dim elements"
 (deftest contiguous-buffer-array-creation
   (testing "Contiguous Buffer Array Creation"
     (is (not (nil? (buffarr double [5 5 5]))))))
+
+(deftest partitioned-buffer-array-creation
+  (testing "Partitioned Buffer Array Creation"
+    (is (not (nil? (pbuffarr double [5 5 5]))))))
 
 (deftest mget-test
   (testing "mget implementation"
