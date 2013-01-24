@@ -30,7 +30,6 @@
        (set-1d! [this# idx# val#]
          (.put ~bufvar idx# val#)))))
 
-
 (def-primitive-buffer-dist ByteBuffer)
 (def-primitive-buffer-dist CharBuffer)
 (def-primitive-buffer-dist ShortBuffer)
@@ -38,7 +37,6 @@
 (def-primitive-buffer-dist LongBuffer)
 (def-primitive-buffer-dist FloatBuffer)
 (def-primitive-buffer-dist DoubleBuffer)
-
 
 (defn cast-buffer-type [buf type]
   (case (.getName type)
