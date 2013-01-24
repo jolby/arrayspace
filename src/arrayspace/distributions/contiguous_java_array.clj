@@ -20,12 +20,14 @@
     (aset array idx val)))
 
 (defmethod make-distribution :default 
-  [type-kw & {:keys [count type]}]
-  (let [arr (make-array (resolve-type type) count)]
-    (ContiguousJavaArrayDistribution. arr count)))
+  [type-kw & {:keys [element-count type]}]
+  {:pre [(not (nil? element-count))]}
+  (let [arr (make-array (resolve-type type) element-count)]
+    (ContiguousJavaArrayDistribution. arr element-count)))
 
 (defmethod make-distribution :local-1d-java-array 
-  [type-kw & {:keys [count type]}]
-  (let [arr (make-array (resolve-type type) count)]
-    (ContiguousJavaArrayDistribution. arr count)))
+  [type-kw & {:keys [element-count type]}]
+  {:pre [(not (nil? element-count))]}
+  (let [arr (make-array (resolve-type type) element-count)]
+    (ContiguousJavaArrayDistribution. arr element-count)))
 

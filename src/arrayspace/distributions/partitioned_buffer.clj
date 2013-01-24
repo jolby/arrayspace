@@ -1,10 +1,12 @@
 (ns arrayspace.distributions.partitioned_buffer
-    (:require 
-     [arrayspace.protocols :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
+    (:require
+     [arrayspace.protocols
+      :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
      [arrayspace.core :refer [make-distribution]]
-     [arrayspace.types :refer [resolve-type required-storage-size]])
-    (:import (java.nio ByteBuffer CharBuffer ShortBuffer 
-                       IntBuffer LongBuffer FloatBuffer DoubleBuffer)))
+     [arrayspace.types
+      :refer [resolve-type required-storage-size]]
+     [arrayspace.distributions.contiguous-buffer
+      :refer [cast-buffer-type distribution-for-type make-buffer-distribution]]))
 
 (defn binary-search
   "Finds earliest occurrence of x in xs (a vector) using binary search."

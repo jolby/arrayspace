@@ -48,23 +48,24 @@
     "float" (.asFloatBuffer buf)
     "double" (.asDoubleBuffer buf)))
 
-(defn distribution-for-type [buf type]
+(defn distribution-for-type [buf type start end]
   (case (.getName type)
-    "byte" (ByteBufferDistribution. buf)
-    "char" (CharBufferDistribution. (cast-buffer-type buf type))
-    "short" (ShortBufferDistribution. (cast-buffer-type buf type))
-    "int" (IntBufferDistribution. (cast-buffer-type buf type))
-    "long" (LongBufferDistribution. (cast-buffer-type buf type))
-    "float" (FloatBufferDistribution. (cast-buffer-type buf type))
-    "double" (DoubleBufferDistribution. (cast-buffer-type buf type))))
-
+    "byte" (ByteBufferDistribution. buf start end)
+    "char" (CharBufferDistribution. (cast-buffer-type buf type) start end)
+    "short" (ShortBufferDistribution. (cast-buffer-type buf type) start end)
+    "int" (IntBufferDistribution. (cast-buffer-type buf type) start end)
+    "long" (LongBufferDistribution. (cast-buffer-type buf type) start end)
+    "float" (FloatBufferDistribution. (cast-buffer-type buf type) start end)
+    "double" (DoubleBufferDistribution. (cast-buffer-type buf type) start end)))
 
 (defn make-buffer-distribution
-  [count type]
+  [type element-count start end]
   (let [type (resolve-type type)
-        buf (ByteBuffer/allocate (required-storage-size type count))]    
-    (distribution-for-type buf type)))
+        buf (ByteBuffer/allocate (required-storage-size type element-count))]
+    (distribution-for-type buf type start end)))
 
-(defmethod make-distribution :local-byte-buffer 
-  [type-kw & {:keys [count type]}]
-  (make-buffer-distribution count type))
+(defmethod make-distribution :local-byte-buffer
+  [type-kw & {:keys [element-count type start end]
+              :or {start 0}}]
+  {:pre [(not (nil? element-count))]}
+  (make-buffer-distribution type element-count start (or end (dec element-count))))
