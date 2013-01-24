@@ -1,23 +1,28 @@
 (ns arrayspace.distributions.contiguous-buffer
-  (:require 
-   [arrayspace.protocols :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
+  (:require
+   [arrayspace.protocols
+    :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
    [arrayspace.core :refer [make-distribution]]
    [arrayspace.types :refer [resolve-type required-storage-size]])
-  (:import (java.nio ByteBuffer CharBuffer ShortBuffer 
+  (:import (java.nio ByteBuffer CharBuffer ShortBuffer
                      IntBuffer LongBuffer FloatBuffer DoubleBuffer)))
 
 (defmacro def-primitive-buffer-dist
   [buf-type]
   (let [bufdist-name (str buf-type "Distribution")
-        bufdist-sym (symbol (str (namespace-munge *ns*) "." bufdist-name))
-        bufvar (with-meta (gensym "buf") {:tag buf-type})]
+        bufdist-sym (symbol bufdist-name)
+        bufvar (with-meta (symbol "buf") {:tag buf-type})
+        startvar (with-meta (symbol "start") {:tag Long/TYPE})
+        endvar (with-meta (symbol "end") {:tag Long/TYPE})]
     `(defrecord ~bufdist-sym
-         [~bufvar]
+         [~bufvar ~startvar ~endvar]
        Distribution
-       (descriptor [this#] 
+       (descriptor [this#]
          {:type (type this#)
           :storage ~bufvar
-          :size (.capacity ~bufvar)})
+          :size (.capacity ~bufvar)
+          :start ~startvar
+          :end ~endvar})
        LinearIndexedAccess
        (get-1d [this# idx#]
          (.get ~bufvar idx#))
