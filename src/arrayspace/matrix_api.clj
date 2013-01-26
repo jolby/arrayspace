@@ -1,11 +1,11 @@
 (ns arrayspace.matrix-api
   (:require
    [arrayspace.protocols :refer :all :exclude [get-1d]]
-   ;;[arrayspace.multiarray :refer :all]
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
    [arrayspace.domain :refer [element-count-of-shape]]
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
+   [arrayspace.distributions.partitioned-buffer]
    [core.matrix.protocols :refer :all]
    [core.matrix.implementations :as imp]))
 
@@ -80,6 +80,9 @@ sizes"
         distribution (make-distribution type-kw
                                 :type type
                                 :element-count (element-count-of-shape shape)
+                                ;;XXX-- partition-count this should come from
+                                ;;dynamic var or config param
+                                :partition-count (count shape)
                                 :data data)
         domain-map (make-domain-map :default
                                     :domain domain
@@ -146,14 +149,21 @@ of either nested sequences or a valid existing matrix"
 (def double-local-buffer-impl
   (ArrayspaceMatrixApi. :double-local-buffer :local-byte-buffer double))
 
+(def double-partitioned-buffer-impl
+  (ArrayspaceMatrixApi. :double-partitioned-buffer :partitioned-byte-buffer double))
+
 (def int-local-1d-java-array-impl
   (ArrayspaceMatrixApi. :int-local-1d-java-array :local-1d-java-array int))
 
 (def int-local-buffer-impl
   (ArrayspaceMatrixApi. :int-local-buffer :local-byte-buffer int))
 
+(def int-partitioned-buffer-impl
+  (ArrayspaceMatrixApi. :int-partitioned-buffer :partitioned-byte-buffer int))
 
 (imp/register-implementation double-local-1d-java-array-impl)
 (imp/register-implementation double-local-buffer-impl)
+(imp/register-implementation double-partitioned-buffer-impl)
 (imp/register-implementation int-local-1d-java-array-impl)
 (imp/register-implementation int-local-buffer-impl)
+(imp/register-implementation int-partitioned-buffer-impl)

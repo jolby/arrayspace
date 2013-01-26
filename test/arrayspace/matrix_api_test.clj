@@ -14,3 +14,7 @@
   (testing "Local Contiguous Buffer Distributions"
   (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
 
+(deftest partitioned-buffer-compliance-test
+  (testing "Partitioned Contiguous Buffer Distributions"
+  (core.matrix.compliance-tester/compliance-test api/int-partitioned-buffer-impl)))
+
