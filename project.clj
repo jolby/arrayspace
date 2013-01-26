@@ -6,4 +6,6 @@ Heavily influenced by Chapele language and the python Blaze projects"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/tools.namespace "0.2.2"]
-                 [mikera/matrix-api "0.0.4"]])
+                 ;;[core.matrix "0.0.6-SNAPSHOT"]
+                 [mikera/core.matrix "0.0.5"]
+                 ])
