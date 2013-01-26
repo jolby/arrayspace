@@ -34,7 +34,7 @@
     (shape [this] shape)
     (rank [this] rank))
 
-(defrecord LocalBlockDataMap
+(defrecord LocalBlockDomainMap
     [domain distribution]
   DomainMap
   (transform-coords [this coords] 
@@ -49,5 +49,5 @@
 
 (defmethod make-domain-map :default
   [type-kw  & {:keys [domain distribution]}]
-  (LocalBlockDataMap. domain distribution))
+  (LocalBlockDomainMap. domain distribution))
                  

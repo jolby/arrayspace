@@ -1,7 +1,8 @@
 (ns arrayspace.distributions.contiguous-java-array
   (:require [arrayspace.protocols :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
             [arrayspace.core :refer [make-distribution]]
-            [arrayspace.types :refer [resolve-type resolve-type-size]]))
+            [arrayspace.types :refer [resolve-type resolve-type-size]]
+            [arrayspace.distribution :refer [set-data-1d!]]))
 ;;
 ;; Simple basic type used in local computations
 ;;
@@ -26,8 +27,9 @@
     (ContiguousJavaArrayDistribution. arr element-count)))
 
 (defmethod make-distribution :local-1d-java-array 
-  [type-kw & {:keys [element-count type]}]
+  [type-kw & {:keys [element-count type data]}]
   {:pre [(not (nil? element-count))]}
-  (let [arr (make-array (resolve-type type) element-count)]
-    (ContiguousJavaArrayDistribution. arr element-count)))
-
+  (let [arr (make-array (resolve-type type) element-count)
+        dist (ContiguousJavaArrayDistribution. arr element-count)]
+    (when  data (set-data-1d! dist data))
+    dist))

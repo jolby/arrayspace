@@ -5,6 +5,7 @@
      [arrayspace.core :refer [make-distribution]]
      [arrayspace.types
       :refer [resolve-type required-storage-size]]
+     [arrayspace.distribution :refer [set-data-1d!]]
      [arrayspace.distributions.contiguous-buffer
       :refer [cast-buffer-type distribution-for-type make-buffer-distribution]]))
 
@@ -75,7 +76,9 @@
     (PartitionedIntBufferDistribution. buffer-chunks element-count)))
 
 (defmethod make-distribution :partitioned-byte-buffer
-  [type-kw & {:keys [element-count partition-count type]}]
+  [type-kw & {:keys [element-count partition-count type data]}]
   {:pre [(not (nil? element-count))
          (not (nil? partition-count))]}
-  (make-partitioned-buffer-distribution type element-count partition-count))
+  (let [dist (make-partitioned-buffer-distribution type element-count partition-count)]
+    (when  data (set-data-1d! dist data))
+    dist))

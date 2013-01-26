@@ -3,7 +3,8 @@
    [arrayspace.protocols
     :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
    [arrayspace.core :refer [make-distribution]]
-   [arrayspace.types :refer [resolve-type required-storage-size]])
+   [arrayspace.types :refer [resolve-type required-storage-size]]
+   [arrayspace.distribution :refer [set-data-1d!]])
   (:import (java.nio ByteBuffer CharBuffer ShortBuffer
                      IntBuffer LongBuffer FloatBuffer DoubleBuffer)))
 
@@ -65,7 +66,10 @@
     (distribution-for-type buf type start end)))
 
 (defmethod make-distribution :local-byte-buffer
-  [type-kw & {:keys [element-count type start end]
+  [type-kw & {:keys [element-count type start end data]
               :or {start 0}}]
   {:pre [(not (nil? element-count))]}
-  (make-buffer-distribution type element-count start (or end (dec element-count))))
+  (let [dist (make-buffer-distribution type element-count start
+                                       (or end (dec element-count)))]
+    (when  data (set-data-1d! dist data))
+    dist))
