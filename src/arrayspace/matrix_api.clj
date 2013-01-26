@@ -108,6 +108,9 @@ of either nested sequences or a valid existing matrix"
                                   :data flat-data)]
       ;; (println (format "Got flat-data: %s" flat-data))
       ;; (println "Got matrix: ")
+      ;; (println "API Implementation: ")
+      ;; (println m)
+      ;; (println "Got matrix: " matrix)
       ;; (println matrix)
       ;; (println "Got matrix DATA: ")
       ;; (println (vec (:array (:distribution matrix))))
@@ -141,13 +144,13 @@ of either nested sequences or a valid existing matrix"
   (ArrayspaceMatrixApi. :double-local-1d-java-array :local-1d-java-array double))
 
 (def double-local-buffer-impl
-  (ArrayspaceMatrixApi. :double-local-buffer :local-buffer double))
+  (ArrayspaceMatrixApi. :double-local-buffer :local-byte-buffer double))
 
 (def int-local-1d-java-array-impl
   (ArrayspaceMatrixApi. :int-local-1d-java-array :local-1d-java-array int))
 
 (def int-local-buffer-impl
-  (ArrayspaceMatrixApi. :int-local-buffer :local-buffer int))
+  (ArrayspaceMatrixApi. :int-local-buffer :local-byte-buffer int))
 
 
 (imp/register-implementation double-local-1d-java-array-impl)

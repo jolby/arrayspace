@@ -6,5 +6,11 @@
      [arrayspace.matrix-api :as api]
      [core.matrix.compliance-tester]))
 
-(deftest compliance-test
-  (core.matrix.compliance-tester/compliance-test api/int-local-1d-java-array-impl))
+(deftest java-array-compliance-test
+  (testing "Local Contiguous Java Array Distributions"
+    (core.matrix.compliance-tester/compliance-test api/int-local-1d-java-array-impl)))
+
+(deftest local-buffer-compliance-test
+  (testing "Local Contiguous Buffer Distributions"
+  (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
+
