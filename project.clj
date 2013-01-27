@@ -8,4 +8,5 @@ Heavily influenced by Chapele language and the python Blaze projects"
                  [org.clojure/tools.namespace "0.2.2"]
                  ;;[core.matrix "0.0.6-SNAPSHOT"]
                  [mikera/core.matrix "0.0.5"]
+                 [org.clojure/tools.macro "0.1.1"]
                  ])

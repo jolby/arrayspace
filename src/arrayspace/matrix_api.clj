@@ -1,8 +1,9 @@
 (ns arrayspace.matrix-api
   (:require
+   [clojure.tools.macro :as macro]
    [arrayspace.protocols :refer :all :exclude [get-1d]]
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
-   [arrayspace.domain :refer [element-count-of-shape]]
+   [arrayspace.domain :refer [element-count-of-shape flatten-coords]]
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
    [arrayspace.distributions.partitioned-buffer]
@@ -14,6 +15,9 @@
 (defn TODO []
   ;;(throw (Exception. "TODO- NOT IMPLEMENTED YET"))
   nil)
+
+(defn slice-3 [m dim i] )
+
 
 (deftype ArrayspaceMatrix
     [api domain domain-map distribution]
@@ -41,7 +45,8 @@
   (new-vector [m length] (.new-vector api length))
   (new-matrix [m rows columns] (.new-matrix api rows columns))
   (new-matrix-nd [m shape] (.new-matrix-nd api shape))
-  (supports-dimensionality? [m dimensions] (.supports-dimensionality? api dimensions))
+  (supports-dimensionality? [m dimensions]
+    (.supports-dimensionality? api dimensions))
 
   PDimensionInfo
   (dimensionality [m] (.rank domain))
@@ -72,15 +77,90 @@
           (.set-1d! distribution (.transform-coords domain-map) indexes v))
   (is-mutable? [m] true)
 
+  PMatrixCloning
+  (clone [m] (TODO))
+
   PMatrixSlices
-  (get-row [m i]
-    (TODO))
+  (get-row [m i] (TODO)
+    (assert (= (.rank domain) 2))
+    (map #(.get-1d distribution
+                   (.transform-coords domain-map [i %1]))
+         (range (.dimension-count m 1))))
+
   (get-column [m i]
-    (TODO))
+    (assert (= (.rank domain) 2))
+    (map #(.get-1d distribution
+                   (.transform-coords domain-map [%1 i]))
+         (range (.dimension-count m 0))))
   (get-major-slice [m i]
-    (TODO))
+    (cond
+     ;; rank1 - 1 == 0 == scalar value
+     (= (.rank domain) 1) (.get-1d distribution i)
+     ;; rank2 - 1 == 1 == id-array/vector
+     (= (.rank domain) 2) (.get-row m i)
+     ;;return rankN - 1 == array rank(n-1))
+     (= (.rank domain) 3) :rank2-2d-array
+     (= (.rank domain) 4) :rank3-3d-array))
   (get-slice [m dimension i]
-    (TODO)))
+    (keyword (str "rank-" dimension "-" i))))
+
+(defn- print-arrayspace-matrix
+  [m #^java.io.Writer w]
+  (.write w "#:ArrayspaceMatrix")
+  (.write w "{:domain ")
+  (print-method (.domain m) w)
+  (.write w ", :domain-map ")
+  (print-method (.domain-map m) w)
+  (.write w ", :distribution ")
+  (print-method (.distribution m) w)
+  (.write w "}"))
+
+(defmethod print-method ArrayspaceMatrix [m w]
+  (print-arrayspace-matrix m w))
+
+
+(defn elwise-fn [m fn]
+  (let [shape (int-array (.shape m))
+        shape-count (count shape)
+        coords (int-array (count shape))
+        count (arrayspace.domain/element-count-of-shape shape)
+        ridx (int-array (reverse (range shape-count)))
+        last-idx (aget ridx 0)]
+    (macro/macrolet
+     [(inc-last-coords [] `(aset ~'coords ~'last-idx (inc (aget ~'coords ~'last-idx))))
+      (dim-at-max [] `(= (aget ~'coords (aget ~'ridx ~'i))
+                         (aget ~'shape (aget ~'ridx ~'i))))
+      (roll-idx []  `(aset ~'coords (aget ~'ridx ~'i) 0))
+      (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'i))
+                        (inc (aget ~'coords (aget ~'ridx (inc ~'i))))))
+      (not-last-dim [] `(> (aget ~'ridx ~'i) 0))
+      ;;(inc-last-coords [coords last-idx]
+      ;;                 `(aset ~coords ~last-idx (inc (aget ~coords ~last-idx))))
+      ;; (dim-at-max [coords shape ridx i]
+      ;;             `(= (aget ~coords (aget ~ridx ~i))
+      ;;                 (aget ~shape (aget ~ridx ~i))))
+      ;; (roll-idx [coords ridx i] `(aset ~coords (aget ~ridx ~i) 0))
+      ;; (carry-idx [coords ridx i]
+      ;;            `(aset ~coords (aget ~ridx (inc ~i))
+      ;;                   (inc (aget ~coords (aget ~ridx (inc ~i))))))
+      ;; (not-last-dim [ridx i] `(> (aget ~ridx ~i) 0))
+      ]
+     (loop [idx 0]
+       (if (= idx count)
+         count
+         (do
+           (println (format "idx: %2d, coords: %s, ridx: %s" idx (vec coords) (vec ridx)))
+           (fn (.get-nd m (vec coords)))
+           ;;(inc-last-coords coords last-idx)
+           (inc-last-coords)
+           (dotimes [i shape-count]
+             (when  (dim-at-max) ;;(dim-at-max coords shape ridx i)
+               (roll-idx) ;;(roll-idx coords ridx i)
+               ;;carry up
+               (when (not-last-dim) ;; (not-last-dim ridx i)
+                 (carry-idx))))
+                 ;;(carry-idx coords ridx i))))
+           (recur (inc idx))))))))
 
 (defrecord ArrayspaceMatrixApi
     [implementation-key multi-array-key element-type]
@@ -101,14 +181,6 @@ of either nested sequences or a valid existing matrix"
                                   :shape data-shape
                                   :type element-type
                                   :data flat-data)]
-      ;; (println (format "Got flat-data: %s" flat-data))
-      ;; (println "Got matrix: ")
-      ;; (println "API Implementation: ")
-      ;; (println m)
-      ;; (println "Got matrix: " matrix)
-      ;; (println matrix)
-      ;; (println "Got matrix DATA: ")
-      ;; (println (vec (:array (:distribution matrix))))
       matrix))
 
   (new-vector [m length]
@@ -133,7 +205,8 @@ of either nested sequences or a valid existing matrix"
 
   (supports-dimensionality? [m dimensions]
     "Returns true if the implementation supports matrices with the given number
-    of dimensions." true))
+    of dimensions."
+    (> dimensions 0)))
 
 
 (defn make-arrayspace-matrix
@@ -144,7 +217,8 @@ of either nested sequences or a valid existing matrix"
                                 :element-count (element-count-of-shape shape)
                                 ;;XXX-- partition-count this should come from
                                 ;;dynamic var or config param
-                                :partition-count (count shape)
+                                ;;:partition-count (count shape)
+                                :partition-count 1
                                 :data data)
         domain-map (make-domain-map :default
                                     :domain domain

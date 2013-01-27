@@ -26,7 +26,8 @@
           :end ~endvar})
        LinearIndexedAccess
        (get-1d [this# idx#]
-         (.get ~bufvar idx#))
+         ;;(println (format "Got idx: %d" idx#))
+         (.get ~bufvar (int idx#)))
        LinearIndexedMutation
        (set-1d! [this# idx# val#]
          (.put ~bufvar idx# val#)))))

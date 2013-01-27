@@ -48,7 +48,9 @@
   LinearIndexedAccess
   (get-1d [this idx]
     (when-let [chunk (binary-range-search buffer-chunks idx chunk-contains-index? chunk-lt-index?)]
-      (.get (.buf chunk) (- idx (.start chunk)))))
+      ;;(println this)
+      ;;(println (format "Got idx: %d, real addr: %d" idx (- idx (.start chunk))))
+      (.get (.buf chunk) (int (- idx (.start chunk))) )))
   LinearIndexedMutation
   (set-1d! [this idx val]
     (when-let [chunk (binary-range-search buffer-chunks idx chunk-contains-index? chunk-lt-index?)]
