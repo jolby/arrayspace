@@ -121,46 +121,30 @@
 
 (defn elwise-fn [m fn]
   (let [shape (int-array (.shape m))
-        shape-count (count shape)
+        rank (.rank m)
         coords (int-array (count shape))
         count (arrayspace.domain/element-count-of-shape shape)
-        ridx (int-array (reverse (range shape-count)))
+        ridx (int-array (reverse (range rank)))
         last-idx (aget ridx 0)]
     (macro/macrolet
-     [(inc-last-coords [] `(aset ~'coords ~'last-idx (inc (aget ~'coords ~'last-idx))))
-      (dim-at-max [] `(= (aget ~'coords (aget ~'ridx ~'i))
-                         (aget ~'shape (aget ~'ridx ~'i))))
-      (roll-idx []  `(aset ~'coords (aget ~'ridx ~'i) 0))
-      (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'i))
-                        (inc (aget ~'coords (aget ~'ridx (inc ~'i))))))
-      (not-last-dim [] `(> (aget ~'ridx ~'i) 0))
-      ;;(inc-last-coords [coords last-idx]
-      ;;                 `(aset ~coords ~last-idx (inc (aget ~coords ~last-idx))))
-      ;; (dim-at-max [coords shape ridx i]
-      ;;             `(= (aget ~coords (aget ~ridx ~i))
-      ;;                 (aget ~shape (aget ~ridx ~i))))
-      ;; (roll-idx [coords ridx i] `(aset ~coords (aget ~ridx ~i) 0))
-      ;; (carry-idx [coords ridx i]
-      ;;            `(aset ~coords (aget ~ridx (inc ~i))
-      ;;                   (inc (aget ~coords (aget ~ridx (inc ~i))))))
-      ;; (not-last-dim [ridx i] `(> (aget ~ridx ~i) 0))
-      ]
-     (loop [idx 0]
-       (if (= idx count)
-         count
-         (do
-           (println (format "idx: %2d, coords: %s, ridx: %s" idx (vec coords) (vec ridx)))
-           (fn (.get-nd m (vec coords)))
-           ;;(inc-last-coords coords last-idx)
-           (inc-last-coords)
-           (dotimes [i shape-count]
-             (when  (dim-at-max) ;;(dim-at-max coords shape ridx i)
-               (roll-idx) ;;(roll-idx coords ridx i)
-               ;;carry up
-               (when (not-last-dim) ;; (not-last-dim ridx i)
-                 (carry-idx))))
-                 ;;(carry-idx coords ridx i))))
-           (recur (inc idx))))))))
+     ;;
+     ;; The variable capture is intentional
+     [(inc-last-coords [] `(aset ~'coords ~'last-idx
+                                 (inc (aget ~'coords ~'last-idx))))
+      (dim-at-max [] `(= (aget ~'coords (aget ~'ridx ~'dim))
+                         (aget ~'shape (aget ~'ridx ~'dim))))
+      (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
+      (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
+                        (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
+      (not-top-dim [] `(> (aget ~'ridx ~'dim) 0))]
+
+     (dotimes [idx count]
+       (println (format "idx: %2d, coords: %s" idx (vec coords)))
+       (fn (.get-nd m (vec coords)))
+       (inc-last-coords)
+       (dotimes [dim rank]
+         (when (dim-at-max)
+           (roll-idx) (when (not-top-dim) (carry-idx))))))))
 
 (defrecord ArrayspaceMatrixApi
     [implementation-key multi-array-key element-type]
