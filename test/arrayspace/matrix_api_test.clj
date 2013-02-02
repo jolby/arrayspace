@@ -4,6 +4,7 @@
      [arrayspace.multiarray :refer :all]     
      [arrayspace.matrix-api :as api]
      [core.matrix :refer :all]
+     [core.matrix.protocols :refer [get-slice]]
      [core.matrix.compliance-tester]))
 
  ;; (deftest java-array-compliance-test
@@ -12,7 +13,7 @@
 
 ;; (deftest local-buffer-compliance-test
 ;;   (testing "Local Contiguous Buffer Distributions"
-;;   (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
+;;     (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
 
 ;; (deftest partitioned-buffer-compliance-test
 ;;   (testing "Partitioned Contiguous Buffer Distributions"
@@ -36,9 +37,54 @@
       (println (format "nth 3: %s" (nth m2 3)))
       (println (format "row 1: %s" (vec (get-row m2 1))))
       (println (format "col 1: %s" (vec (get-column m2 1))))
-      (println (format "slice 1: %s" (.get-slice m2 1 1)))
-      (println (format "slice 1: %s" (.get-slice m3 2 2)))
+      (println (format "slice m2 1 1: %s" (get-slice m2 1 1)))
+      (println (format "slice m3 2 2: %s" (get-slice m3 2 2)))
       (println m3)
-      (api/elwise-fn m3 #(println (format "Got element: %d" %1)))
+      (api/elwise-fn m3 #(assert (not (nil? %2))))
       (is (== (ecount m2) 9)))))
+
   
+(deftest slice-test
+  (letfn [(print-slice [fmt-str m]
+            (println (format fmt-str (if (array? m) [(vec (shape m)) (vec (seq  m))] m))))]
+  (testing "Basic slicing operations"
+    (let [data2d [[1 2 3][4 5 6][7 8 9]]
+          
+          data3d [[[ 1  2  3]  ;;x0,y0,z0 - z3
+                   [ 4  5  6]  ;;x0,y1,z0 - z3
+                   [ 7  8  9]] ;;x0,y2,z0 - z3
+                  [[10 11 12] 
+                   [13 14 15]
+                   [16 17 18]]
+                  [[19 20 21]
+                   [22 23 24]
+                   [25 26 27]]]
+
+          m2 (matrix api/int-local-buffer-impl data2d)
+          m3 (matrix api/int-local-buffer-impl data3d)
+          m4 (api/make-arrayspace-matrix :int-local-buffer
+                                     :local-byte-buffer
+                                     :shape [4 4 4 4]
+                                     :type int)]
+      ;;should be middle 2d block (10 - 18)
+      ;; (println (format "m3 (slice m3 1 1) %s" (get-slice m3 1 1)))
+      ;; (println (format "m4 (slice m4 1 1) %s" (get-slice m4 1 1)))
+      ;; (println (format "m4 (slice m4 0 1) %s" (get-slice m4 0 1)))
+      ;; (println (format "m4 (slice m4 2 2) %s" (get-slice m4 2 2)))
+
+      ;;dim0 0 - 2
+      (print-slice "m3 (slice m3 0 0) %s" (get-slice m3 0 0))
+      (print-slice "m3 (slice m3 0 1) %s" (get-slice m3 0 1))
+      (print-slice "m3 (slice m3 0 2) %s" (get-slice m3 0 2))
+      ;;dim1 0 - 8
+      (print-slice "m3 (slice m3 1 0) %s" (get-slice m3 1 0))
+      (print-slice "m3 (slice m3 1 1) %s" (get-slice m3 1 1))
+      (print-slice "m3 (slice m3 1 8) %s" (get-slice m3 1 8))
+      ;;dim2 0 - 26
+      (print-slice "m3 (slice m3 2 0) %s" (get-slice m3 2 0))
+      (print-slice "m3 (slice m3 2 1) %s" (get-slice m3 2 1))
+      (print-slice "m3 (slice m3 2 2) %s" (get-slice m3 2 2))
+      (print-slice "m3 (slice m3 2 15) %s" (get-slice m3 2 15))
+      (print-slice "m3 (slice m3 2 26) %s" (get-slice m3 2 26))
+      ;;(print-slice "m4 (slice m4 1 1) %s"  (get-slice m4 1 1))
+      ))))

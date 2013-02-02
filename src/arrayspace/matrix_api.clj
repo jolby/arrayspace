@@ -3,14 +3,17 @@
    [clojure.tools.macro :as macro]
    [arrayspace.protocols :refer :all :exclude [get-1d]]
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
-   [arrayspace.domain :refer [element-count-of-shape flatten-coords]]
+   [arrayspace.domain :refer [strides-of-shape element-count-of-shape flatten-coords]]
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
    [arrayspace.distributions.partitioned-buffer]
+   [arrayspace.types :refer [resolve-type]]
    [core.matrix.protocols :refer :all]
-   [core.matrix.implementations :as imp]))
+   [core.matrix.implementations :as imp]
+   [core.matrix.impl.persistent-vector]))
 
 (declare make-arrayspace-matrix)
+(declare elwise-fn)
 
 (defn TODO []
   ;;(throw (Exception. "TODO- NOT IMPLEMENTED YET"))
@@ -24,7 +27,7 @@
 
   clojure.lang.Counted
   (count [m]
-    (reduce * 1 (.shape m)))
+    (reduce * 1 (shape m)))
 
   clojure.lang.Indexed
   (nth [m i] (.get-1d distribution i))
@@ -33,76 +36,106 @@
 
   clojure.lang.Seqable
   (seq [m]
-    (map #(.get-1d distribution %1) (range (reduce * 1 (.shape m)))))
+    ;;(map #(.get-1d distribution %1) (range (reduce * 1 (shape m))))
+    (let [arr (make-array (:element-type api) (element-count-of-shape (shape domain)))]
+      (elwise-fn m (fn [idx el] (aset arr idx el)))
+      (seq arr)))
 
   Domain
-  (shape [this] (.shape domain))
-  (rank [this] (.rank domain))
+  (shape [this] (shape domain))
+  (rank [this] (rank domain))
 
   PImplementation
-  (implementation-key [m] (.implementation-key api))
-  (construct-matrix [m data] (.construct-matrix api data))
-  (new-vector [m length] (.new-vector api length))
-  (new-matrix [m rows columns] (.new-matrix api rows columns))
-  (new-matrix-nd [m shape] (.new-matrix-nd api shape))
+  (implementation-key [m] (implementation-key api))
+  (construct-matrix [m data] (construct-matrix api data))
+  (new-vector [m length] (new-vector api length))
+  (new-matrix [m rows columns] (new-matrix api rows columns))
+  (new-matrix-nd [m shape] (new-matrix-nd api shape))
   (supports-dimensionality? [m dimensions]
-    (.supports-dimensionality? api dimensions))
+    (supports-dimensionality? api dimensions))
 
   PDimensionInfo
-  (dimensionality [m] (.rank domain))
-  (get-shape [m] (.shape domain))
+  (dimensionality [m] (rank domain))
+  (get-shape [m] (shape domain))
   (is-scalar? [m] false)
-  (is-vector? [m] (= 1 (.rank domain)))
+  (is-vector? [m] (= 1 (rank domain)))
   (dimension-count [m dimension-number]
-    (nth (.shape domain) dimension-number))
+    (nth (shape domain) dimension-number))
 
   PIndexedAccess
   (get-1d [m row]
-          (assert (= (.rank domain) 1))
+          (assert (= (rank domain) 1))
           (.get-1d distribution row))
   (get-2d [m row column]
-          (assert (= (.rank domain) 2))
-          (.get-1d distribution (.transform-coords domain-map [row column])))
+          (assert (= (rank domain) 2))
+          (.get-1d distribution (transform-coords domain-map [row column])))
   (get-nd [m indexes]
-          (.get-1d distribution (.transform-coords domain-map indexes)))
+          (.get-1d distribution (transform-coords domain-map indexes)))
 
   PIndexedSetting
   (set-1d [m row v]
-          (assert (= (.rank domain) 1))
+          (assert (= (rank domain) 1))
           (.set-1d! distribution row v))
   (set-2d [m row column v]
-          (assert (= (.rank domain) 2))
-          (.set-1d! distribution (.transform-coords domain-map [row column]) v))
+          (assert (= (rank domain) 2))
+          (.set-1d! distribution (transform-coords domain-map [row column]) v))
   (set-nd [m indexes v]
-          (.set-1d! distribution (.transform-coords domain-map) indexes v))
+          (.set-1d! distribution (transform-coords domain-map indexes) v))
   (is-mutable? [m] true)
 
   PMatrixCloning
   (clone [m] (TODO))
 
   PMatrixSlices
-  (get-row [m i] (TODO)
-    (assert (= (.rank domain) 2))
+  (get-row [m i]
+    (assert (= (rank domain) 2))
     (map #(.get-1d distribution
-                   (.transform-coords domain-map [i %1]))
-         (range (.dimension-count m 1))))
+                   (transform-coords domain-map [i %1]))
+         (range (dimension-count m 1))))
 
   (get-column [m i]
-    (assert (= (.rank domain) 2))
+    (assert (= (rank domain) 2))
     (map #(.get-1d distribution
-                   (.transform-coords domain-map [%1 i]))
-         (range (.dimension-count m 0))))
+                   (transform-coords domain-map [%1 i]))
+         (range (dimension-count m 0))))
   (get-major-slice [m i]
     (cond
-     ;; rank1 - 1 == 0 == scalar value
-     (= (.rank domain) 1) (.get-1d distribution i)
-     ;; rank2 - 1 == 1 == id-array/vector
-     (= (.rank domain) 2) (.get-row m i)
-     ;;return rankN - 1 == array rank(n-1))
-     (= (.rank domain) 3) :rank2-2d-array
-     (= (.rank domain) 4) :rank3-3d-array))
+     ;; rank1 - 1 == rank0 == scalar value
+     (= (rank domain) 1) (.get-1d distribution i)
+     ;; rank2 - 1 == rank1 == id-array/vector
+     (= (rank domain) 2) (.get-row m i)
+     ;;return rankN - 1 == arrayspace-matrix of rank(n-1))
+     (= (rank domain) 3) :rank2-2d-array
+     (= (rank domain) 4) :rank3-3d-array))
   (get-slice [m dimension i]
-    (keyword (str "rank-" dimension "-" i))))
+    {:pre [(and (>= dimension 0) (>= (dec (rank m)) dimension))]}
+    (let [shape (vec (shape m))
+          strides (strides-of-shape shape)
+          droptake (inc dimension)
+          dropped-shape (take droptake shape)
+          dropped-strides (take droptake strides)
+          new-shape (drop droptake shape)
+          ]
+      (if (empty? new-shape)
+        ;;rank0 array --> scalar value at index i
+        (.get-1d distribution i)
+        ;;rank-i array
+        ;;explode first idx of shape with product of
+        ;;dropped shapes * first idx of shape
+
+        (let [collapsed-shape (cons (reduce * (conj dropped-shape (first new-shape))) (rest new-shape))
+              new-strides (drop droptake strides)
+              offset (* (nth strides dimension) i)
+              new-array-slice (make-arrayspace-matrix
+                               (:implementation-key api)
+                               (:multiarray-key api)
+                               :shape new-shape
+                               :type (:element-type api)
+                               :offset offset
+                               :distribution distribution)]
+          (println [shape strides new-shape new-strides collapsed-shape dropped-shape dropped-strides offset])
+          new-array-slice))
+      )))
 
 (defn- print-arrayspace-matrix
   [m #^java.io.Writer w]
@@ -120,14 +153,13 @@
 
 
 (defn elwise-fn [m fn]
-  (let [shape (int-array (.shape m))
-        rank (.rank m)
-        coords (int-array (count shape))
-        count (arrayspace.domain/element-count-of-shape shape)
+  (let [shape (int-array (shape m))
+        rank (rank m)
+        coords (int-array rank)
+        elcount (element-count-of-shape shape)
         ridx (int-array (reverse (range rank)))
         last-idx (aget ridx 0)]
     (macro/macrolet
-     ;;
      ;; The variable capture is intentional
      [(inc-last-coords [] `(aset ~'coords ~'last-idx
                                  (inc (aget ~'coords ~'last-idx))))
@@ -138,9 +170,9 @@
                         (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
       (not-top-dim [] `(> (aget ~'ridx ~'dim) 0))]
 
-     (dotimes [idx count]
-       (println (format "idx: %2d, coords: %s" idx (vec coords)))
-       (fn (.get-nd m (vec coords)))
+     (dotimes [idx elcount]
+       ;;(println (format "idx: %2d, coords: %s" idx (vec coords)))
+       (fn idx (.get-nd m (vec coords)))
        (inc-last-coords)
        (dotimes [dim rank]
          (when (dim-at-max)
@@ -157,9 +189,13 @@
 
   (construct-matrix [m data]
     "Returns a new matrix containing the given data. Data should be in the form
-of either nested sequences or a valid existing matrix"
-    (let [flat-data (vec (flatten data))
-          data-shape (get-shape data)
+     of either nested sequences or a valid existing matrix"
+    ;;(println (format "data: %s" data))
+    (let [vdata (vec (seq data))
+          flat-data (vec (flatten vdata))
+          data-shape (vec (get-shape vdata))
+          ;;_ (println (format "shape: %s, data: %s" data-shape vdata))
+          - (when (empty? data-shape)(throw (Exception. "shape cannot be empty")))
           matrix
           (make-arrayspace-matrix implementation-key multi-array-key
                                   :shape data-shape
@@ -175,7 +211,7 @@ of either nested sequences or a valid existing matrix"
 
   (new-matrix [m rows columns]
     "Returns a new matrix (regular 2D matrix) with the given number of rows and
-    columns."
+     columns."
     (make-arrayspace-matrix implementation-key multi-array-key
                             :shape [rows columns]
                             :type element-type))
@@ -194,20 +230,21 @@ of either nested sequences or a valid existing matrix"
 
 
 (defn make-arrayspace-matrix
-  [impl-kw type-kw & {:keys [shape type data]}]
+  [impl-kw type-kw & {:keys [shape type data offset distribution]}]
   (let [domain (make-domain :type-kw :shape shape)
-        distribution (make-distribution type-kw
-                                :type type
-                                :element-count (element-count-of-shape shape)
-                                ;;XXX-- partition-count this should come from
-                                ;;dynamic var or config param
-                                ;;:partition-count (count shape)
-                                :partition-count 1
-                                :data data)
+        distribution (or distribution (make-distribution type-kw
+                                                   :type (resolve-type type)
+                                                   :element-count (element-count-of-shape shape)
+                                                   ;;XXX-- partition-count this should come from
+                                                   ;;dynamic var or config param
+                                                   ;;:partition-count (count shape)
+                                                   :partition-count 1
+                                                   :data (if distribution nil data)))
         domain-map (make-domain-map :default
                                     :domain domain
-                                    :distribution distribution)
-        api (ArrayspaceMatrixApi. impl-kw type-kw type)]
+                                    :distribution distribution
+                                    :offset (or offset 0))
+        api (ArrayspaceMatrixApi. impl-kw type-kw (resolve-type type))]
     (ArrayspaceMatrix. api domain domain-map distribution)))
 
 ;; (def double-local-1d-java-array-impl
