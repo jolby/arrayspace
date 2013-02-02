@@ -89,53 +89,34 @@
   PMatrixSlices
   (get-row [m i]
     (assert (= (rank domain) 2))
-    (map #(.get-1d distribution
-                   (transform-coords domain-map [i %1]))
-         (range (dimension-count m 1))))
+    (get-slice m 0 i))
 
   (get-column [m i]
+    ;;XXX--TODO create col-major domain/domain map over this distribution
     (assert (= (rank domain) 2))
     (map #(.get-1d distribution
                    (transform-coords domain-map [%1 i]))
          (range (dimension-count m 0))))
+
   (get-major-slice [m i]
-    (cond
-     ;; rank1 - 1 == rank0 == scalar value
-     (= (rank domain) 1) (.get-1d distribution i)
-     ;; rank2 - 1 == rank1 == id-array/vector
-     (= (rank domain) 2) (.get-row m i)
-     ;;return rankN - 1 == arrayspace-matrix of rank(n-1))
-     (= (rank domain) 3) :rank2-2d-array
-     (= (rank domain) 4) :rank3-3d-array))
+    (get-slice m 0 i))
+
   (get-slice [m dimension i]
     {:pre [(and (>= dimension 0) (>= (dec (rank m)) dimension))]}
     (let [shape (vec (shape m))
           strides (strides-of-shape shape)
-          droptake (inc dimension)
-          dropped-shape (take droptake shape)
-          dropped-strides (take droptake strides)
-          new-shape (drop droptake shape)
-          ]
+          new-shape (drop (inc dimension) shape)]
       (if (empty? new-shape)
-        ;;rank0 array --> scalar value at index i
+        ;;rank0 array == scalar value at index i
         (.get-1d distribution i)
-        ;;rank-i array
-        ;;explode first idx of shape with product of
-        ;;dropped shapes * first idx of shape
-
-        (let [collapsed-shape (cons (reduce * (conj dropped-shape (first new-shape))) (rest new-shape))
-              new-strides (drop droptake strides)
-              offset (* (nth strides dimension) i)
-              new-array-slice (make-arrayspace-matrix
-                               (:implementation-key api)
-                               (:multiarray-key api)
-                               :shape new-shape
-                               :type (:element-type api)
-                               :offset offset
-                               :distribution distribution)]
-          (println [shape strides new-shape new-strides collapsed-shape dropped-shape dropped-strides offset])
-          new-array-slice))
-      )))
+        ;;rank - dim+1 array
+        (make-arrayspace-matrix
+         (:implementation-key api)
+         (:multiarray-key api)
+         :shape new-shape
+         :type (:element-type api)
+         :offset (* (nth strides dimension) i)
+         :distribution distribution)))))
 
 (defn- print-arrayspace-matrix
   [m #^java.io.Writer w]
