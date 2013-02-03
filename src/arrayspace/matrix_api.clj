@@ -144,20 +144,19 @@
      ;; The variable capture is intentional
      [(inc-last-coords [] `(aset ~'coords ~'last-idx
                                  (inc (aget ~'coords ~'last-idx))))
-      (dim-at-max [] `(= (aget ~'coords (aget ~'ridx ~'dim))
+      (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
                          (aget ~'shape (aget ~'ridx ~'dim))))
       (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
       (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
                         (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
-      (not-top-dim [] `(> (aget ~'ridx ~'dim) 0))]
+      (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
 
      (dotimes [idx elcount]
-       ;;(println (format "idx: %2d, coords: %s" idx (vec coords)))
        (fn idx (.get-nd m (vec coords)))
        (inc-last-coords)
        (dotimes [dim rank]
-         (when (dim-at-max)
-           (roll-idx) (when (not-top-dim) (carry-idx))))))))
+         (when (dim-at-max?)
+           (roll-idx) (when-not (top-dim?) (carry-idx))))))))
 
 (defrecord ArrayspaceMatrixApi
     [implementation-key multi-array-key element-type]
@@ -175,14 +174,12 @@
     (let [vdata (vec (seq data))
           flat-data (vec (flatten vdata))
           data-shape (vec (get-shape vdata))
-          ;;_ (println (format "shape: %s, data: %s" data-shape vdata))
-          - (when (empty? data-shape)(throw (Exception. "shape cannot be empty")))
-          matrix
-          (make-arrayspace-matrix implementation-key multi-array-key
-                                  :shape data-shape
-                                  :type element-type
-                                  :data flat-data)]
-      matrix))
+          - (when (empty? data-shape)(throw (Exception. "shape cannot be empty")))]
+
+      (make-arrayspace-matrix implementation-key multi-array-key
+                              :shape data-shape
+                              :type element-type
+                              :data flat-data)))
 
   (new-vector [m length]
     "Returns a new vector (1D column matrix) of the given length."
@@ -211,40 +208,20 @@
 
 
 (defn make-arrayspace-matrix
-  [impl-kw type-kw & {:keys [shape type data offset distribution]}]
-  (let [domain (make-domain :type-kw :shape shape)
-        distribution (or distribution (make-distribution type-kw
-                                                   :type (resolve-type type)
+  [impl-kw multi-array-kw & {:keys [shape type data offset distribution partition-count]}]
+  (let [resolved-type (resolve-type type)
+        domain (make-domain multi-array-kw :shape shape)
+        distribution (or distribution (make-distribution multi-array-kw
+                                                   :type resolved-type
                                                    :element-count (element-count-of-shape shape)
-                                                   ;;XXX-- partition-count this should come from
-                                                   ;;dynamic var or config param
-                                                   ;;:partition-count (count shape)
-                                                   :partition-count 1
+                                                   :partition-count (or partition-count 1)
                                                    :data (if distribution nil data)))
         domain-map (make-domain-map :default
                                     :domain domain
                                     :distribution distribution
                                     :offset (or offset 0))
-        api (ArrayspaceMatrixApi. impl-kw type-kw (resolve-type type))]
+        api (ArrayspaceMatrixApi. impl-kw multi-array-kw resolved-type)]
     (ArrayspaceMatrix. api domain domain-map distribution)))
-
-;; (def double-local-1d-java-array-impl
-;;   (ArrayspaceMatrixApi. :double-local-1d-java-array :local-1d-java-array double))
-
-;; (def double-local-buffer-impl
-;;   (ArrayspaceMatrixApi. :double-local-buffer :local-byte-buffer double))
-
-;; (def double-partitioned-buffer-impl
-;;   (ArrayspaceMatrixApi. :double-partitioned-buffer :partitioned-byte-buffer double))
-
-;; (def int-local-1d-java-array-impl
-;;   (ArrayspaceMatrixApi. :int-local-1d-java-array :local-1d-java-array int))
-
-;; (def int-local-buffer-impl
-;;   (ArrayspaceMatrixApi. :int-local-buffer :local-byte-buffer int))
-
-;; (def int-partitioned-buffer-impl
-;;   (ArrayspaceMatrixApi. :int-partitioned-buffer :partitioned-byte-buffer int))
 
 (def double-local-1d-java-array-impl
   (make-arrayspace-matrix :double-local-1d-java-array

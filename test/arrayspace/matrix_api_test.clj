@@ -46,9 +46,9 @@
   (testing "Basic slicing operations"
     (let [data2d [[1 2 3][4 5 6][7 8 9]]
 
-          data3d [[[ 1  2  3]  ;;x0,y0,z0 - z3
-                   [ 4  5  6]  ;;x0,y1,z0 - z3
-                   [ 7  8  9]] ;;x0,y2,z0 - z3
+          data3d [[[ 1  2  3]
+                   [ 4  5  6]
+                   [ 7  8  9]]
                   [[10 11 12]
                    [13 14 15]
                    [16 17 18]]
