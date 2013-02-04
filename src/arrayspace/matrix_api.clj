@@ -23,14 +23,16 @@
 
 
 (deftype ArrayspaceMatrix
-    [api domain domain-map distribution]
+    [api domain domain-map distribution element-type]
 
   clojure.lang.Counted
   (count [m]
     (reduce * 1 (shape m)))
 
   clojure.lang.Indexed
-  (nth [m i] (.get-1d distribution i))
+  (nth [m i]
+    (get-slice m 0 i))
+  ;;(nth [m i] (.get-1d distribution i))
 
   clojure.lang.Sequential
 
@@ -62,6 +64,9 @@
   (dimension-count [m dimension-number]
     (nth (shape domain) dimension-number))
 
+  PTypeInfo
+  (element-type [m] element-type)
+
   PIndexedAccess
   (get-1d [m row]
           (assert (= (rank domain) 1))
@@ -82,9 +87,6 @@
   (set-nd [m indexes v]
           (.set-1d! distribution (transform-coords domain-map indexes) v))
   (is-mutable? [m] true)
-
-  PMatrixCloning
-  (clone [m] (TODO))
 
   PMatrixSlices
   (get-row [m i]
@@ -116,7 +118,96 @@
          :shape new-shape
          :type (:element-type api)
          :offset (* (nth strides dimension) i)
-         :distribution distribution)))))
+         :distribution distribution))))
+
+  PMatrixCloning
+  (clone [m]
+    (make-arrayspace-matrix
+     (:implementation-key api)
+     (:multiarray-key api)
+     :shape (shape m)
+     :type (:element-type api)
+     :offset (.offset domain-map)
+     :distribution distribution))
+
+  PConversion
+  (convert-to-nested-vectors [m]
+    (let [rev-dims (reverse (shape m))
+          rev-strides (reverse (strides domain-map))]
+      (loop [i (rank m)]
+        )))
+
+(defn ccv [s elseq]
+  (let [loopstate {:accum []
+                   :elseq
+                   :shapes s
+                   :shape (nth s 0)
+                   :rank (dec (count s))
+                   :rank-idx 0
+                   :dim-idx 0}]
+  ;;for each shape in shapes s
+    (loop [st loopstate]
+      (if (= (:dim-idx st) shape)
+        st
+
+      (if (= (:rank-idx st) 0)
+        ;;if leaf (rank0) : vec collect all children
+        (let [leaves (vec (take (:shape st)))
+              elrest (drop (:shape st))]
+        ;;if node (rank > 0): vec map recurse all children
+  ))))))
+
+(defn ccv2 [s seq]
+  (let [inner-vals (map vec (partition (last s) seq))
+        revshapes (reverse (drop-last s))]
+    (reductions (fn [] inner-vals))))
+
+(defn ccv3 [s eseq]
+  (if-not (count s) (vec eseq)
+          (loop [countdown (count s) revshapes (reverse s) accum eseq]
+            (if (zero? countdown) (first accum)
+                (recur (dec countdown)
+                       (rest revshapes)
+                       (map vec (partition (first revshapes) accum)))))))
+
+
+(defn cv [s elseq]
+  (letfn [(collect-nodes [rank dims countdown elseq accum]
+            (println (format "rank: %s c: %s next: %s seq: %s accum: %s" rank countdown (first elseq) elseq accum))
+            (if (zero? countdown) [elseq accum]
+                (if (zero? (dec rank)) (collect-leaves (nth dims (dec rank)) elseq accum)
+          (collect-leaves [countdown elseq accum]
+            (println (format "c: %s next: %s seq: %s accum: %s" countdown (first elseq) elseq accum))
+            (if (zero? countdown) [elseq accum]
+                (recur (dec countdown) (rest elseq) (conj accum (first elseq)))))]
+    (let [rank (dec (count s))]
+      ;;should guard against rank0 here...
+      (loop [rank rank dim-count (nth s 0) dim-idx 0 elseq elseq parent-accum [] accum []]
+        (println (format "rank: %s dim-count: %s dim-idx: %s parent: %s accum: %s"
+                         rank dim-count dim-idx parent-accum accum))
+        (assert (< rank (count s)))
+        (assert (and (>= dim-idx 0) (<= dim-idx 2)))
+        (if (not (next elseq))
+          (conj parent-accum accum)
+
+          (if (zero? rank)
+            (let [[elseq leaf-accum] (collect-leaves dim-count elseq accum)]
+              (println (format "leaf-accum: %s" leaf-accum))
+              ;;we're at bottom, collect leaf elements
+              (println (format "leaf pop..."))
+              (recur (inc rank) (nth s (inc dim-idx)) (inc dim-idx) elseq (conj parent-accum leaf-accum) []))
+
+                (if (< dim-idx (dec dim-count))
+                  (do (println "descend...")
+                      (recur (dec rank) (nth s (inc dim-idx)) dim-idx elseq parent-accum accum))
+                  (do (println "non leaf pop...")
+                  (recur (inc rank) (nth s dim-idx) (inc dim-idx) elseq (conj parent-accum accum) [])
+                  )))
+
+        )))))
+
+
+
 
 (defn- print-arrayspace-matrix
   [m #^java.io.Writer w]
@@ -136,8 +227,8 @@
 (defn elwise-fn [m fn]
   (let [shape (int-array (shape m))
         rank (rank m)
-        coords (int-array rank)
         elcount (element-count-of-shape shape)
+        coords (int-array rank)
         ridx (int-array (reverse (range rank)))
         last-idx (aget ridx 0)]
     (macro/macrolet
@@ -170,7 +261,6 @@
   (construct-matrix [m data]
     "Returns a new matrix containing the given data. Data should be in the form
      of either nested sequences or a valid existing matrix"
-    ;;(println (format "data: %s" data))
     (let [vdata (vec (seq data))
           flat-data (vec (flatten vdata))
           data-shape (vec (get-shape vdata))
@@ -206,7 +296,6 @@
     of dimensions."
     (> dimensions 0)))
 
-
 (defn make-arrayspace-matrix
   [impl-kw multi-array-kw & {:keys [shape type data offset distribution partition-count]}]
   (let [resolved-type (resolve-type type)
@@ -215,13 +304,13 @@
                                                    :type resolved-type
                                                    :element-count (element-count-of-shape shape)
                                                    :partition-count (or partition-count 1)
-                                                   :data (if distribution nil data)))
+                                                   :data data))
         domain-map (make-domain-map :default
                                     :domain domain
                                     :distribution distribution
                                     :offset (or offset 0))
         api (ArrayspaceMatrixApi. impl-kw multi-array-kw resolved-type)]
-    (ArrayspaceMatrix. api domain domain-map distribution)))
+    (ArrayspaceMatrix. api domain domain-map distribution resolved-type)))
 
 (def double-local-1d-java-array-impl
   (make-arrayspace-matrix :double-local-1d-java-array

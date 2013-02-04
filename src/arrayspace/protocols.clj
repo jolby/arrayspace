@@ -31,7 +31,10 @@
    array is mapped using some domain map."
 
   (transform-coords [this coords] "Transform the high level Domain coordinates to
-  low-level element coords in the Locale/Distribution"))
+  low-level element coords in the Locale/Distribution")
+  (strides [this] "Return the strides for each dimension")
+  (offset [this] "Return the offset from the beginning of the distribution this
+  domain map is associated with"))
 
 (defprotocol Distribution
   "A distribution abstractly represents a unit of the target architecture that

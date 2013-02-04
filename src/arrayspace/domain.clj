@@ -41,7 +41,9 @@ space to 1d"
     [domain distribution offset strides]
   DomainMap
   (transform-coords [this coords]
-    (flatten-coords-array coords (shape domain) strides offset)))
+    (flatten-coords-array coords (shape domain) strides offset))
+  (strides [this] strides)
+  (offset [this] offset))
 
 (defmethod make-domain :default
   [type-kw  & {:keys [shape]}]
