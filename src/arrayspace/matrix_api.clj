@@ -132,82 +132,14 @@
 
   PConversion
   (convert-to-nested-vectors [m]
-    (let [rev-dims (reverse (shape m))
-          rev-strides (reverse (strides domain-map))]
-      (loop [i (rank m)]
-        )))
-
-(defn ccv [s elseq]
-  (let [loopstate {:accum []
-                   :elseq
-                   :shapes s
-                   :shape (nth s 0)
-                   :rank (dec (count s))
-                   :rank-idx 0
-                   :dim-idx 0}]
-  ;;for each shape in shapes s
-    (loop [st loopstate]
-      (if (= (:dim-idx st) shape)
-        st
-
-      (if (= (:rank-idx st) 0)
-        ;;if leaf (rank0) : vec collect all children
-        (let [leaves (vec (take (:shape st)))
-              elrest (drop (:shape st))]
-        ;;if node (rank > 0): vec map recurse all children
-  ))))))
-
-(defn ccv2 [s seq]
-  (let [inner-vals (map vec (partition (last s) seq))
-        revshapes (reverse (drop-last s))]
-    (reductions (fn [] inner-vals))))
-
-(defn ccv3 [s eseq]
-  (if-not (count s) (vec eseq)
-          (loop [countdown (count s) revshapes (reverse s) accum eseq]
-            (if (zero? countdown) (first accum)
-                (recur (dec countdown)
-                       (rest revshapes)
-                       (map vec (partition (first revshapes) accum)))))))
-
-
-(defn cv [s elseq]
-  (letfn [(collect-nodes [rank dims countdown elseq accum]
-            (println (format "rank: %s c: %s next: %s seq: %s accum: %s" rank countdown (first elseq) elseq accum))
-            (if (zero? countdown) [elseq accum]
-                (if (zero? (dec rank)) (collect-leaves (nth dims (dec rank)) elseq accum)
-          (collect-leaves [countdown elseq accum]
-            (println (format "c: %s next: %s seq: %s accum: %s" countdown (first elseq) elseq accum))
-            (if (zero? countdown) [elseq accum]
-                (recur (dec countdown) (rest elseq) (conj accum (first elseq)))))]
-    (let [rank (dec (count s))]
-      ;;should guard against rank0 here...
-      (loop [rank rank dim-count (nth s 0) dim-idx 0 elseq elseq parent-accum [] accum []]
-        (println (format "rank: %s dim-count: %s dim-idx: %s parent: %s accum: %s"
-                         rank dim-count dim-idx parent-accum accum))
-        (assert (< rank (count s)))
-        (assert (and (>= dim-idx 0) (<= dim-idx 2)))
-        (if (not (next elseq))
-          (conj parent-accum accum)
-
-          (if (zero? rank)
-            (let [[elseq leaf-accum] (collect-leaves dim-count elseq accum)]
-              (println (format "leaf-accum: %s" leaf-accum))
-              ;;we're at bottom, collect leaf elements
-              (println (format "leaf pop..."))
-              (recur (inc rank) (nth s (inc dim-idx)) (inc dim-idx) elseq (conj parent-accum leaf-accum) []))
-
-                (if (< dim-idx (dec dim-count))
-                  (do (println "descend...")
-                      (recur (dec rank) (nth s (inc dim-idx)) dim-idx elseq parent-accum accum))
-                  (do (println "non leaf pop...")
-                  (recur (inc rank) (nth s dim-idx) (inc dim-idx) elseq (conj parent-accum accum) [])
-                  )))
-
-        )))))
-
-
-
+    (let [eseq (seq m)
+          s (shape m)]
+      (if-not (count s) (vec eseq)
+              (loop [countdown (count s) revshapes (reverse s) accum eseq]
+                (if (zero? countdown) (first accum)
+                    (recur (dec countdown)
+                           (rest revshapes)
+                           (map vec (partition (first revshapes) accum)))))))))
 
 (defn- print-arrayspace-matrix
   [m #^java.io.Writer w]
