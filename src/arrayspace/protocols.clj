@@ -53,13 +53,15 @@
     "Return the descriptor containing low-level storage and
   layout information for this Distribution"))
 
-(defprotocol Reshapeable
-  ""
-  (reshape [this shape]))
 
-(defprotocol MutableReshapeable
-  ""
-  (reshape! [this shape]))
+;; XXX--clashes with matrix-api
+;; (defprotocol Reshapeable
+;;   ""
+;;   (reshape [this shape]))
+
+;; (defprotocol MutableReshapeable
+;;   ""
+;;   (reshape! [this shape]))
 
 (defprotocol IndexedAccess
   "Protocol for indexed read access to arrays of any dimensions."    

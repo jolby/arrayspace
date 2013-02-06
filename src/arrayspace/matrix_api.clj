@@ -9,43 +9,58 @@
    [arrayspace.distributions.partitioned-buffer]
    [arrayspace.types :refer [resolve-type]]
    [core.matrix.protocols :refer :all]
+   [core.matrix :refer [scalar? array?]]
    [core.matrix.implementations :as imp]
    [core.matrix.impl.persistent-vector]))
 
-(declare make-arrayspace-matrix)
-(declare elwise-fn)
+(declare make-arrayspace-matrix do-elements do-elements-indexed do-elements!)
+
 
 (defn TODO []
   ;;(throw (Exception. "TODO- NOT IMPLEMENTED YET"))
   nil)
 
-(defn slice-3 [m dim i] )
-
-
 (deftype ArrayspaceMatrix
     [api domain domain-map distribution element-type]
 
+  Object
+  (equals [m o]
+    (if (and (array? o)
+             (every? true? (map == (get-shape m) (get-shape o)))
+             (every? true? (map == (element-seq m) (element-seq o))))
+      true
+      (do
+        (let [oa (array? o)
+              shape-eq (every? true? (map == (get-shape m) (get-shape o)))
+              el-eq (every? true? (map == (element-seq m) (element-seq o)))]
+          (println (format "EQ: FALSE: %s %s" m o))
+          (println (format "o: array? %s, shape-eq: %s el-eq: %s" oa shape-eq el-eq))
+          (println (format "m-shape: %s, o-shape: %s" (vec (get-shape m)) (vec (get-shape o))))
+          (println (format "m-seq: %s, o-seq: %s" (vec (element-seq m)) (vec (element-seq o)))))
+        false)))
+
+  (hashCode [m]
+    (let [coll (element-seq m)]
+      (reduce #(hash-combine %1 (.hashCode %2)) (.hashCode (first coll)) (next coll))))
+
   clojure.lang.Counted
   (count [m]
-    (reduce * 1 (shape m)))
+    "Return count of first dim. Use ecount for count of all elements"
+    (first (get-shape m)))
 
   clojure.lang.Indexed
   (nth [m i]
     (get-slice m 0 i))
-  ;;(nth [m i] (.get-1d distribution i))
 
   clojure.lang.Sequential
 
   clojure.lang.Seqable
   (seq [m]
-    ;;(map #(.get-1d distribution %1) (range (reduce * 1 (shape m))))
-    (let [arr (make-array (:element-type api) (element-count-of-shape (shape domain)))]
-      (elwise-fn m (fn [idx el] (aset arr idx el)))
-      (seq arr)))
+    (map (fn [idx] (get-slice m 0 idx)) (range (first (shape m)))))
 
   Domain
-  (shape [this] (shape domain))
-  (rank [this] (rank domain))
+  (shape [m] (vec (shape domain)))
+  (rank [m] (rank domain))
 
   PImplementation
   (implementation-key [m] (implementation-key api))
@@ -58,7 +73,7 @@
 
   PDimensionInfo
   (dimensionality [m] (rank domain))
-  (get-shape [m] (shape domain))
+  (get-shape [m] (vec (shape domain)))
   (is-scalar? [m] false)
   (is-vector? [m] (= 1 (rank domain)))
   (dimension-count [m dimension-number]
@@ -66,6 +81,9 @@
 
   PTypeInfo
   (element-type [m] element-type)
+
+  PMatrixEquality
+  (matrix-equals [m o] (.equals m o))
 
   PIndexedAccess
   (get-1d [m row]
@@ -98,7 +116,7 @@
     (assert (= (rank domain) 2))
     (map #(.get-1d distribution
                    (transform-coords domain-map [%1 i]))
-         (range (dimension-count m 0))))
+         (range (dimension-count m 1))))
 
   (get-major-slice [m i]
     (get-slice m 0 i))
@@ -132,54 +150,139 @@
 
   PConversion
   (convert-to-nested-vectors [m]
-    (let [eseq (seq m)
+    (let [eseq (element-seq m)
           s (shape m)]
       (if-not (count s) (vec eseq)
               (loop [countdown (count s) revshapes (reverse s) accum eseq]
                 (if (zero? countdown) (first accum)
                     (recur (dec countdown)
                            (rest revshapes)
-                           (map vec (partition (first revshapes) accum)))))))))
+                         (map vec (partition (first revshapes) accum))))))))
+  PCoercion
+  (coerce-param [m param]
+    (cond
+     (is-scalar? param) param
+     (instance? ArrayspaceMatrix param) param
+     (array? param) (construct-matrix api (convert-to-nested-vectors param))
+     :default (construct-matrix api (convert-to-nested-vectors param))))
 
-(defn- print-arrayspace-matrix
-  [m #^java.io.Writer w]
-  (.write w "#:ArrayspaceMatrix")
-  (.write w "{:domain ")
-  (print-method (.domain m) w)
-  (.write w ", :domain-map ")
-  (print-method (.domain-map m) w)
-  (.write w ", :distribution ")
-  (print-method (.distribution m) w)
-  (.write w "}"))
+  ;; PCoercion
+  ;; (coerce-param [m param]
+  ;;   (if (array? param)
+  ;;     (construct-matrix api (seq param))
+  ;;     ;;(construct-matrix api (convert-to-nested-vectors param))
+  ;;   ;;XXX--TODO just using pvec impl for now
+  ;;   (core.matrix.impl.persistent-vector/persistent-vector-coerce param)))
 
-(defmethod print-method ArrayspaceMatrix [m w]
-  (print-arrayspace-matrix m w))
+  PReshaping
+  (reshape [m shape] nil)
 
+  ;; PVectorOps
+  ;; (vector-dot [a b]
+  ;;   (assert (= (dimensionality a) (dimensionality b) 1))
+  ;;   (reduce + 0 (map * a b)))
+  ;; (length-squared [a]
+  ;;   (assert (= (dimensionality a) 1))
+  ;;   (reduce + (map #(* % %) a)))
+  ;; (normalise [a]
+  ;;   (assert (= (dimensionality a) 1))
+  ;;   (scale a (/ 1.0 (Math/sqrt (length-squared a)))))
 
-(defn elwise-fn [m fn]
-  (let [shape (int-array (shape m))
-        rank (rank m)
-        elcount (element-count-of-shape shape)
-        coords (int-array rank)
-        ridx (int-array (reverse (range rank)))
-        last-idx (aget ridx 0)]
-    (macro/macrolet
-     ;; The variable capture is intentional
-     [(inc-last-coords [] `(aset ~'coords ~'last-idx
-                                 (inc (aget ~'coords ~'last-idx))))
-      (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
-                         (aget ~'shape (aget ~'ridx ~'dim))))
-      (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
-      (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
-                        (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
-      (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
+  ;; PMatrixOps
+  ;; (trace [m]
+  ;;   "Returns the trace of a matrix (sum of elements on main diagonal.
+  ;;    Must throw an error if the matrix is not square (i.e. all dimensions sizes are equal)"
+  ;;   nil)
+  ;; (determinant [m]
+  ;;   "Returns the determinant of a matrix."
+  ;;   nil)
+  ;; (inverse [m]
+  ;;   "Returns the invese of a matrix. Should throw an exception if m is not invertible."
+  ;;   nil)
+  ;; (negate [m]
+  ;;   "Returns a new matrix with all elements negated."
+  ;;   nil)
+  ;; (transpose [m]
+  ;;   "Returns the transpose of a matrix. Equivalent to reversing the \"shape\".
+  ;;    Note that:
+  ;;    - The transpose of a scalar is the same scalar
+  ;;    - The transpose of a 1D vector is the same 1D vector
+  ;;    - The transpose of a 2D matrix swaps rows and columns"
+  ;;   nil)
 
-     (dotimes [idx elcount]
-       (fn idx (.get-nd m (vec coords)))
-       (inc-last-coords)
-       (dotimes [dim rank]
-         (when (dim-at-max?)
-           (roll-idx) (when-not (top-dim?) (carry-idx))))))))
+  PMatrixAdd
+  (matrix-add [m a]
+    (assert (= (dimensionality m) 2))
+    (element-map m + a))
+  (matrix-sub [m a]
+    (assert (= (dimensionality m) 2))
+    (element-map m - a))
+
+  PSummable
+  (sum [m]
+    (element-reduce m +))
+
+  PMatrixMultiply
+  (element-multiply [m a]
+    (element-map m * a))
+  (matrix-multiply [m a]
+    (element-map m * a))
+
+  PMatrixScaling
+  (scale [m a]
+    (element-map m #(* % a)))
+  (pre-scale [m a]
+    (element-map m (partial * a)))
+
+  ;; PSpecialisedConstructors
+  ;; (identity-matrix [m dims] nil)
+  ;; (diagonal-matrix [m diagonal-values] nil)
+  )
+
+;; I would have placed these inline in the body of the deftype,
+;; but it barfs with an 'Unsupported Binding Form' error on the variadic method impls
+(extend-protocol PFunctionalOperations
+  ArrayspaceMatrix
+  (element-seq [m]
+    ;;XXX-- this is horrible performance-wise, but just trying to get it
+    ;;Will create true Arrayspace ISeq/Iterator impls later
+    (let [arr (make-array (:element-type (.api m))
+                          (element-count-of-shape (seq (shape (.domain m)))))]
+      (do-elements-indexed m (fn [idx el] (aset arr idx el)))
+      (seq arr)))
+
+  (element-map
+    ([m f]
+       (map f (element-seq m)))
+    ([m f a]
+       (map f (element-seq m) (if (scalar? a) (repeat a) a)))
+    ([m f a more]
+       (apply element-seq f m (if (scalar? a) (repeat a) a) more)))
+
+  (element-map!
+    ;;Apply fn to all elements in m, setting that element to the result in-place
+    ([m f]
+       (do-elements! m f))
+    ([m f a]
+       (do-elements! m #(f % a)))
+    ([m f a more]
+       (TODO)))
+
+  (element-reduce
+    ([m f]
+       (reduce f (element-seq m)))
+    ([m f init]
+       (reduce f init (element-seq m)))))
+
+;; (extend-protocol PAssignment
+;;   ArrayspaceMatrix
+;;   (assign!
+;;     ([m source] nil))
+
+;;   (assign-array!
+;;     ([m arr] nil)
+;;     ([m arr start length] nil)))
+
 
 (defrecord ArrayspaceMatrixApi
     [implementation-key multi-array-key element-type]
@@ -228,9 +331,83 @@
     of dimensions."
     (> dimensions 0)))
 
+(defn- print-arrayspace-matrix
+  [m #^java.io.Writer w]
+  (.write w "#:ArrayspaceMatrix")
+  (.write w "{:domain ")
+  (print-method (.domain m) w)
+  (.write w ", :domain-map ")
+  (print-method (.domain-map m) w)
+  (.write w ", :distribution ")
+  (print-method (.distribution m) w)
+  (.write w "}"))
+
+(defmethod print-method ArrayspaceMatrix [m w]
+  (print-arrayspace-matrix m w))
+
+(defn do-elements!
+  [m el-fn]
+  (let [shape (int-array (shape m))
+        rank (rank m)
+        elcount (element-count-of-shape shape)
+        coords (int-array rank)
+        ridx (int-array (reverse (range rank)))
+        last-idx (aget ridx 0)]
+    (macro/macrolet
+     ;; The variable capture is intentional
+     [(inc-last-coords [] `(aset ~'coords ~'last-idx
+                                 (inc (aget ~'coords ~'last-idx))))
+      (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
+                          (aget ~'shape (aget ~'ridx ~'dim))))
+      (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
+      (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
+                           (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
+      (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
+
+     (dotimes [idx elcount]
+       (set-nd m (vec coords) (el-fn (.get-nd m (vec coords))))
+       (inc-last-coords)
+       (dotimes [dim rank]
+         (when (dim-at-max?)
+           (roll-idx) (when-not (top-dim?) (carry-idx))))))))
+
+(defn do-elements-indexed [m el-fn]
+  (let [shape (int-array (shape m))
+        rank (rank m)
+        elcount (element-count-of-shape shape)
+        coords (int-array rank)
+        ridx (int-array (reverse (range rank)))
+        last-idx (aget ridx 0)]
+    (macro/macrolet
+     ;; The variable capture is intentional
+     [(inc-last-coords [] `(aset ~'coords ~'last-idx
+                                 (inc (aget ~'coords ~'last-idx))))
+      (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
+                         (aget ~'shape (aget ~'ridx ~'dim))))
+      (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
+      (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
+                        (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
+      (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
+
+     (dotimes [idx elcount]
+       (el-fn idx (.get-nd m (vec coords)))
+       (inc-last-coords)
+       (dotimes [dim rank]
+         (when (dim-at-max?)
+           (roll-idx) (when-not (top-dim?) (carry-idx))))))))
+
+(defn do-elements [m el-fn]
+  (do-elements-indexed m (fn [idx el] (el-fn el))))
+
+(defn map-elements [m el-fn]
+  (map el-fn (element-seq m)))
+
+(defn resolve-type-from-data [data]
+  (resolve-type (type (first data))))
+
 (defn make-arrayspace-matrix
   [impl-kw multi-array-kw & {:keys [shape type data offset distribution partition-count]}]
-  (let [resolved-type (resolve-type type)
+  (let [resolved-type (if data (resolve-type-from-data data) (resolve-type type))
         domain (make-domain multi-array-kw :shape shape)
         distribution (or distribution (make-distribution multi-array-kw
                                                    :type resolved-type
