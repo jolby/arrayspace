@@ -166,49 +166,8 @@
      (array? param) (construct-matrix api (convert-to-nested-vectors param))
      :default (construct-matrix api (convert-to-nested-vectors param))))
 
-  ;; PCoercion
-  ;; (coerce-param [m param]
-  ;;   (if (array? param)
-  ;;     (construct-matrix api (seq param))
-  ;;     ;;(construct-matrix api (convert-to-nested-vectors param))
-  ;;   ;;XXX--TODO just using pvec impl for now
-  ;;   (core.matrix.impl.persistent-vector/persistent-vector-coerce param)))
-
   PReshaping
   (reshape [m shape] nil)
-
-  ;; PVectorOps
-  ;; (vector-dot [a b]
-  ;;   (assert (= (dimensionality a) (dimensionality b) 1))
-  ;;   (reduce + 0 (map * a b)))
-  ;; (length-squared [a]
-  ;;   (assert (= (dimensionality a) 1))
-  ;;   (reduce + (map #(* % %) a)))
-  ;; (normalise [a]
-  ;;   (assert (= (dimensionality a) 1))
-  ;;   (scale a (/ 1.0 (Math/sqrt (length-squared a)))))
-
-  ;; PMatrixOps
-  ;; (trace [m]
-  ;;   "Returns the trace of a matrix (sum of elements on main diagonal.
-  ;;    Must throw an error if the matrix is not square (i.e. all dimensions sizes are equal)"
-  ;;   nil)
-  ;; (determinant [m]
-  ;;   "Returns the determinant of a matrix."
-  ;;   nil)
-  ;; (inverse [m]
-  ;;   "Returns the invese of a matrix. Should throw an exception if m is not invertible."
-  ;;   nil)
-  ;; (negate [m]
-  ;;   "Returns a new matrix with all elements negated."
-  ;;   nil)
-  ;; (transpose [m]
-  ;;   "Returns the transpose of a matrix. Equivalent to reversing the \"shape\".
-  ;;    Note that:
-  ;;    - The transpose of a scalar is the same scalar
-  ;;    - The transpose of a 1D vector is the same 1D vector
-  ;;    - The transpose of a 2D matrix swaps rows and columns"
-  ;;   nil)
 
   PMatrixAdd
   (matrix-add [m a]
@@ -232,12 +191,7 @@
   (scale [m a]
     (element-map m #(* % a)))
   (pre-scale [m a]
-    (element-map m (partial * a)))
-
-  ;; PSpecialisedConstructors
-  ;; (identity-matrix [m dims] nil)
-  ;; (diagonal-matrix [m diagonal-values] nil)
-  )
+    (element-map m (partial * a))))
 
 ;; I would have placed these inline in the body of the deftype,
 ;; but it barfs with an 'Unsupported Binding Form' error on the variadic method impls
