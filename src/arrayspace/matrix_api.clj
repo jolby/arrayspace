@@ -299,6 +299,7 @@
 (defmethod print-method ArrayspaceMatrix [m w]
   (print-arrayspace-matrix m w))
 
+;;XXX--consolidate these two with a common macro body
 (defn do-elements!
   [m el-fn]
   (let [shape (int-array (shape m))
