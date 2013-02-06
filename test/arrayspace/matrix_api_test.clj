@@ -4,7 +4,7 @@
      [arrayspace.multiarray :refer :all]
      [arrayspace.matrix-api :as api]
      [core.matrix :refer :all]
-     [core.matrix.protocols :refer [get-slice]]
+     [core.matrix.protocols :refer [get-slice element-seq]]
      [core.matrix.compliance-tester]
      [core.matrix.impl.persistent-vector]))
 
@@ -33,113 +33,51 @@
 ;;  (testing "Local Contiguous Java Array Distributions"
 ;;    (core.matrix.compliance-tester/compliance-test api/double-local-1d-java-array-impl)))
 
-(deftest local-buffer-compliance-test
-  (testing "Local Contiguous Buffer Distributions"
-    (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
+;; (deftest local-buffer-compliance-test
+;;   (testing "Local Contiguous Buffer Distributions"
+;;     (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
 
 ;; (deftest partitioned-buffer-compliance-test
 ;;   (testing "Partitioned Contiguous Buffer Distributions"
 ;;   (core.matrix.compliance-tester/compliance-test api/int-partitioned-buffer-impl)))
 
 (deftest basic-api-test
-  (testing "Basic API implementation. Sanity checks"
-    (api/do-elements m3 #(assert (not (nil? %1))))
+  (testing "do-elements works"
+    (api/do-elements m3 #(assert (not (nil? %1)))))
+  
+  (testing "ecount and count"
     (is (== (ecount m2) 9))
     (is (== (count m2) 3))
     (is (== (ecount m3) 27))
-    (is (== (count m3) 3))
+    (is (== (count m3) 3)))
+
+  (testing "equality/equivalence"
     (is (= m2 m2))
     (is (equals m2 data2d))
     (is (= m3 m3))
-    (is (equals m3 data3d))
+    (is (equals m3 data3d)))
+
+  (testing "basic type introspection and predicates"
     (is (true? (array? m2)))
-    (is (true? (array? m3)))
-    (println (format "scale m2 X 2: %s" (vec (scale m2 2))))
-    (println (format "scale m3 X 2: %s" (vec (scale m3 2))))
-    (println (format "m3 assign!: %s" (vec (assign! m3 (vec (range 27 (* 2 27)))))))
-    ))
+    (is (true? (matrix? m2)))
+    (is (true? (array? m3))))
+    
+    ;; (println (format "scale m2 X 2: %s" (vec (scale m2 2))))
+    ;; (println (format "scale m3 X 2: %s" (vec (scale m3 2))))
+    ;; (println (format "m3 assign!: %s" (vec (assign! m3 (vec (range 27 (* 2 27)))))))
+    )
 
-
-;; (deftest basic-api-test
-;;   (testing "Basic API implementation. Sanity checks"
-;;     (let [data2d [[1 2 3][4 5 6][7 8 9]]
-;;           data3d [[[1 2 3][4 5 6][7 8 9]]
-;;                   [[10 11 12][13 14 15][16 17 18]]
-;;                   [[19 20 21][22 23 24][25 26 27]]]
-;;           m2 (matrix api/int-local-buffer-impl data2d)
-;;           m3 (matrix api/int-local-buffer-impl data3d)]
-;;       ;;(println "int-partitioned-buffer")
-;;       ;;(println (format "M2: %s" m2))
-;;       ;;(println (format "ecount: %s" (ecount m2)))
-;;       ;;(println (format "data2d: %s" data2d))
-;;       ;;(println (format "data3d: %s" data3d))
-;;       ;;(println (format "vec/seq: %s" (vec (seq m2))))
-;;       ;;(println (format "count: %s" (count m2)))
-;;       ;;(println (format "nth 3: %s" (nth m2 2)))
-;;       ;;(println m3)
-;;       (api/do-elements m3 #(assert (not (nil? %1))))
-;;       (is (== (ecount m2) 9))
-;;       (is (== (count m2) 3))
-;;       (is (== (ecount m3) 27))
-;;       (is (== (count m3) 3))
-;;       (is (= m2 m2))
-;;       (is (equals m2 data2d))
-;;       (is (= m3 m3))
-;;       (is (equals m3 data3d))
-;;       (is (true? (array? m2)))
-;;       (is (true? (array? m3)))
-;;       (println (format "scale m2 X 2: %s" (vec (scale m2 2))))
-;;       (println (format "scale m3 X 2: %s" (vec (scale m3 2))))
-;;       )))
-
-
-;; (deftest slice-test
-;;   (letfn [(print-slice [fmt-str m]
-;;             (println (format fmt-str
-;;                              (if (array? m)
-;;                                [(vec (shape m)) (vec (seq  m))]
-;;                                m))))]
-;;   (testing "Basic slicing operations"
-;;     (let [data2d [[1 2 3][4 5 6][7 8 9]]
-
-;;           data3d [[[ 1  2  3]
-;;                    [ 4  5  6]
-;;                    [ 7  8  9]]
-;;                   [[10 11 12]
-;;                    [13 14 15]
-;;                    [16 17 18]]
-;;                   [[19 20 21]
-;;                    [22 23 24]
-;;                    [25 26 27]]]
-
-;;           m2 (matrix api/int-local-buffer-impl data2d)
-;;           m3 (matrix api/int-local-buffer-impl data3d)
-;;           m4 (api/make-arrayspace-matrix :int-local-buffer
-;;                                      :local-byte-buffer
-;;                                      :shape [4 4 4 4]
-;;                                      :type int)]
-;;       ;; (println (format "m3 (slice m3 1 1) %s" (get-slice m3 1 1)))
-;;       ;; (println (format "m4 (slice m4 1 1) %s" (get-slice m4 1 1)))
-;;       ;; (println (format "m4 (slice m4 0 1) %s" (get-slice m4 0 1)))
-;;       ;; (println (format "m4 (slice m4 2 2) %s" (get-slice m4 2 2)))
-;;       ;; (println (format "row 1: %s" (vec (seq (get-row m2 1)))))
-;;       ;; (println (format "col 1: %s" (vec (seq (get-column m2 1)))))
-;;       ;; (println (format "slice m2 1 1: %s" (get-slice m2 1 1)))
-;;       ;; (println (format "slice m3 2 2: %s" (get-slice m3 2 2)))
-
-;;       ;; ;;dim0 0 - 2
-;;       ;; (print-slice "m3 (slice m3 0 0) %s" (get-slice m3 0 0))
-;;       ;; (print-slice "m3 (slice m3 0 1) %s" (get-slice m3 0 1))
-;;       ;; (print-slice "m3 (slice m3 0 2) %s" (get-slice m3 0 2))
-;;       ;; ;;dim1 0 - 8
-;;       ;; (print-slice "m3 (slice m3 1 0) %s" (get-slice m3 1 0))
-;;       ;; (print-slice "m3 (slice m3 1 1) %s" (get-slice m3 1 1))
-;;       ;; (print-slice "m3 (slice m3 1 8) %s" (get-slice m3 1 8))
-;;       ;; ;;dim2 0 - 26
-;;       ;; (print-slice "m3 (slice m3 2 0) %s" (get-slice m3 2 0))
-;;       ;; (print-slice "m3 (slice m3 2 1) %s" (get-slice m3 2 1))
-;;       ;; (print-slice "m3 (slice m3 2 2) %s" (get-slice m3 2 2))
-;;       ;; (print-slice "m3 (slice m3 2 15) %s" (get-slice m3 2 15))
-;;       ;; (print-slice "m3 (slice m3 2 26) %s" (get-slice m3 2 26))
-;;       ;;(print-slice "m4 (slice m4 1 1) %s"  (get-slice m4 1 1))
-;;       ))))
+(deftest slice-test
+  (letfn [(do-slice [m dim idx exp-shp exp-dat]
+            (let [res (slice m dim idx)
+                  [shp dat] (if (array? res)
+                              [(shape res) res]
+                              [[1] [res]])]
+              (is (= shp exp-shp))
+              (is (equals dat exp-dat))))]
+    (do-slice m3 0 0 [3 3] [[1 2 3][4 5 6][7 8 9]])
+    (do-slice m3 0 1 [3 3] [[10 11 12][13 14 15][16 17 18]])
+    (do-slice m3 1 0 [3] [1 2 3])
+    (do-slice m3 1 8 [3] [25 26 27])
+    (do-slice m3 2 0 [1] [1])
+    (do-slice m3 2 26 [1] [27])))
