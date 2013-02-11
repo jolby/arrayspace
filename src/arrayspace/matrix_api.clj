@@ -124,19 +124,25 @@
   (get-slice [m dimension i]
     {:pre [(and (>= dimension 0) (>= (dec (rank m)) dimension))]}
     (let [shape (vec (shape m))
-          strides (strides-of-shape shape)
-          new-shape (drop (inc dimension) shape)]
+          strides (.strides (.domain-map m)) ;;(strides-of-shape shape)
+          new-shape (drop 1 shape)
+          new-strides (into-array (drop-last strides))]
       (if (empty? new-shape)
         ;;rank0 array == scalar value at index i
         (.get-1d distribution i)
         ;;rank - dim+1 array
-        (make-arrayspace-matrix
-         (:implementation-key api)
-         (:multiarray-key api)
-         :shape new-shape
-         :type (:element-type api)
-         :offset (* (nth strides dimension) i)
-         :distribution distribution))))
+        (do (aset new-strides (dec (count new-strides)) 1)
+          (make-arrayspace-matrix
+             (:implementation-key api)
+             (:multiarray-key api)
+             :shape new-shape
+             :pinned-dims {dimension i}
+             :type (:element-type api)
+             :offset (* (nth strides dimension) i)
+             ;;:strides (cons (* (first strides) (first new-strides)) (drop 1
+             ;;new-strides))
+             :strides (vec new-strides)
+             :distribution distribution)))))
 
   PMatrixCloning
   (clone [m]
@@ -304,6 +310,7 @@
   [m el-fn]
   (let [shape (int-array (shape m))
         rank (rank m)
+        pinned-dims (or (:pinned-dims (.domain-map m)) {})
         elcount (element-count-of-shape shape)
         coords (int-array rank)
         ridx (int-array (reverse (range rank)))
@@ -319,16 +326,19 @@
                            (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
       (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
 
+     (doseq [[dim idx] pinned-dims] (aset coords dim idx))
      (dotimes [idx elcount]
        (set-nd m (vec coords) (el-fn (.get-nd m (vec coords))))
        (inc-last-coords)
        (dotimes [dim rank]
-         (when (dim-at-max?)
-           (roll-idx) (when-not (top-dim?) (carry-idx))))))))
+         (when-not (pinned-dims dim)
+           (when (dim-at-max?)
+             (roll-idx) (when-not (top-dim?) (carry-idx)))))))))
 
 (defn do-elements-indexed [m el-fn]
   (let [shape (int-array (shape m))
         rank (rank m)
+        pinned-dims (or (:pinned-dims (.domain-map m)) {})
         elcount (element-count-of-shape shape)
         coords (int-array rank)
         ridx (int-array (reverse (range rank)))
@@ -344,12 +354,21 @@
                         (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
       (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
 
+     (doseq [[dim idx] pinned-dims] (aset coords dim idx))
      (dotimes [idx elcount]
-       (el-fn idx (.get-nd m (vec coords)))
+       (try
+         (el-fn idx (.get-nd m (vec coords)))
+         (catch Exception e
+           (println (format "e: %s idx: %s, coords: %s" e idx (vec coords)))
+           ;;(println (format "transformed coords: %s" (transform-coords
+           ;;(.domain-map m) coords)))
+           (println (.domain-map m))
+           (println (format "strides: %s" (vec (.strides (.domain-map m)))))))
        (inc-last-coords)
        (dotimes [dim rank]
-         (when (dim-at-max?)
-           (roll-idx) (when-not (top-dim?) (carry-idx))))))))
+         (when-not (pinned-dims dim)
+           (when (dim-at-max?)
+             (roll-idx) (when-not (top-dim?) (carry-idx)))))))))
 
 (defn do-elements [m el-fn]
   (do-elements-indexed m (fn [idx el] (el-fn el))))
@@ -361,7 +380,7 @@
   (resolve-type (type (first data))))
 
 (defn make-arrayspace-matrix
-  [impl-kw multi-array-kw & {:keys [shape type data offset distribution partition-count]}]
+  [impl-kw multi-array-kw & {:keys [shape type data offset strides pinned-dims distribution partition-count]}]
   (let [resolved-type (if data (resolve-type-from-data data) (resolve-type type))
         domain (make-domain multi-array-kw :shape shape)
         distribution (or distribution (make-distribution multi-array-kw
@@ -372,8 +391,11 @@
         domain-map (make-domain-map :default
                                     :domain domain
                                     :distribution distribution
-                                    :offset (or offset 0))
+                                    :offset (or offset 0)
+                                    :strides strides
+                                    :pinned-dims pinned-dims)
         api (ArrayspaceMatrixApi. impl-kw multi-array-kw resolved-type)]
+    (println (format "strides: %s" strides))
     (ArrayspaceMatrix. api domain domain-map distribution resolved-type)))
 
 (def double-local-1d-java-array-impl
