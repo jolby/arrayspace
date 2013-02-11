@@ -39,31 +39,39 @@
 ;;  (testing "Local Contiguous Java Array Distributions"
 ;;    (core.matrix.compliance-tester/compliance-test api/double-local-1d-java-array-impl)))
 
-(deftest local-buffer-compliance-test
-  (testing "Local Contiguous Buffer Distributions"
-    (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
+;; (deftest local-buffer-compliance-test
+;;   (testing "Local Contiguous Buffer Distributions"
+;;     (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
 
 ;; (deftest partitioned-buffer-compliance-test
 ;;   (testing "Partitioned Contiguous Buffer Distributions"
 ;;   (core.matrix.compliance-tester/compliance-test api/int-partitioned-buffer-impl)))
 
 (deftest basic-api-test
-  (testing "Basic API implementation. Sanity checks"
-    (api/do-elements m3 #(assert (not (nil? %1))))
+  (testing "do-elements works"
+    (api/do-elements m3 #(assert (not (nil? %1)))))
+
+  (testing "ecount and count"
     (is (== (ecount m2) 9))
     (is (== (count m2) 3))
     (is (== (ecount m3) 27))
-    (is (== (count m3) 3))
+    (is (== (count m3) 3)))
+
+  (testing "equality/equivalence"
     (is (= m2 m2))
     (is (equals m2 data2d))
     (is (= m3 m3))
-    (is (equals m3 data3d))
+    (is (equals m3 data3d)))
+
+  (testing "basic type introspection and predicates"
     (is (true? (array? m2)))
-    (is (true? (array? m3)))
-    ;;(println (format "scale m2 X 2: %s" (vec (scale m2 2))))
-    ;;(println (format "scale m3 X 2: %s" (vec (scale m3 2))))
-    ;;(println (format "m3 assign!: %s" (vec (assign! m3 (vec (range 27 (* 2 27))))))))
-  )
+    (is (true? (matrix? m2)))
+    (is (true? (array? m3))))
+
+    ;; (println (format "scale m2 X 2: %s" (vec (scale m2 2))))
+    ;; (println (format "scale m3 X 2: %s" (vec (scale m3 2))))
+    ;; (println (format "m3 assign!: %s" (vec (assign! m3 (vec (range 27 (* 2 27)))))))
+    )
 
 (deftest slice-test
   (letfn [(do-slice [m dim idx exp-shp exp-dat]
