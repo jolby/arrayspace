@@ -3,7 +3,8 @@
    [clojure.tools.macro :as macro]
    [arrayspace.protocols :refer :all :exclude [get-1d]]
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
-   [arrayspace.domain :refer [strides-of-shape element-count-of-shape flatten-coords]]
+   [arrayspace.domain :refer [strides-of-shape element-count-of-shape
+                              flatten-coords do-elements-loop]]
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
    [arrayspace.distributions.partitioned-buffer]
@@ -123,26 +124,23 @@
 
   (get-slice [m dimension i]
     {:pre [(and (>= dimension 0) (>= (dec (rank m)) dimension))]}
-    (let [shape (vec (shape m))
-          strides (.strides (.domain-map m)) ;;(strides-of-shape shape)
+    (let [shape (long-array (shape m))
+          strides (.strides (.domain-map m))
           new-shape (drop 1 shape)
-          new-strides (into-array (drop-last strides))]
+          slice-dim-bounds [i (inc i)]
+          new-strides (long-array (drop-last strides))]
       (if (empty? new-shape)
         ;;rank0 array == scalar value at index i
         (.get-1d distribution i)
         ;;rank - dim+1 array
-        (do (aset new-strides (dec (count new-strides)) 1)
-          (make-arrayspace-matrix
-             (:implementation-key api)
-             (:multiarray-key api)
-             :shape new-shape
-             :pinned-dims {dimension i}
-             :type (:element-type api)
-             :offset (* (nth strides dimension) i)
-             ;;:strides (cons (* (first strides) (first new-strides)) (drop 1
-             ;;new-strides))
-             :strides (vec new-strides)
-             :distribution distribution)))))
+        (make-arrayspace-matrix
+         (:implementation-key api)
+         (:multiarray-key api)
+         :shape new-shape
+         :type (:element-type api)
+         :offset (* (nth strides dimension) i)
+         :strides (vec new-strides)
+         :distribution distribution))))
 
   PMatrixCloning
   (clone [m]
@@ -305,70 +303,78 @@
 (defmethod print-method ArrayspaceMatrix [m w]
   (print-arrayspace-matrix m w))
 
-;;XXX--consolidate these two with a common macro body
 (defn do-elements!
   [m el-fn]
-  (let [shape (int-array (shape m))
-        rank (rank m)
-        pinned-dims (or (:pinned-dims (.domain-map m)) {})
-        elcount (element-count-of-shape shape)
-        coords (int-array rank)
-        ridx (int-array (reverse (range rank)))
-        last-idx (aget ridx 0)]
-    (macro/macrolet
-     ;; The variable capture is intentional
-     [(inc-last-coords [] `(aset ~'coords ~'last-idx
-                                 (inc (aget ~'coords ~'last-idx))))
-      (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
-                          (aget ~'shape (aget ~'ridx ~'dim))))
-      (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
-      (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
-                           (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
-      (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
+  (do-elements-loop m coords idx el
+                    (set-nd m coords (el-fn (.get-nd m coords)))))
 
-     (doseq [[dim idx] pinned-dims] (aset coords dim idx))
-     (dotimes [idx elcount]
-       (set-nd m (vec coords) (el-fn (.get-nd m (vec coords))))
-       (inc-last-coords)
-       (dotimes [dim rank]
-         (when-not (pinned-dims dim)
-           (when (dim-at-max?)
-             (roll-idx) (when-not (top-dim?) (carry-idx)))))))))
+
+;;XXX--consolidate these two with a common macro body
+;; (defn do-elements!
+;;   [m el-fn]
+;;   (let [shape (int-array (shape m))
+;;         rank (rank m)
+;;         elcount (element-count-of-shape shape)
+;;         coords (int-array rank)
+;;         ridx (int-array (reverse (range rank)))
+;;         last-idx (aget ridx 0)]
+;;     (macro/macrolet
+;;      ;; The variable capture is intentional
+;;      [(inc-last-coords [] `(aset ~'coords ~'last-idx
+;;                                  (inc (aget ~'coords ~'last-idx))))
+;;       (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
+;;                           (aget ~'shape (aget ~'ridx ~'dim))))
+;;       (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
+;;       (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
+;;                            (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
+;;       (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
+;;      ;;XXX -- change to bottom-ranges
+;;      ;;(doseq [[dim idx] pinned-dims] (aset coords dim idx))
+;;      (dotimes [idx elcount]
+;;        (set-nd m (vec coords) (el-fn (.get-nd m (vec coords))))
+;;        (inc-last-coords)
+;;        (dotimes [dim rank]
+;;          (when (dim-at-max?)
+;;            (roll-idx) (when-not (top-dim?) (carry-idx))))))))
 
 (defn do-elements-indexed [m el-fn]
-  (let [shape (int-array (shape m))
-        rank (rank m)
-        pinned-dims (or (:pinned-dims (.domain-map m)) {})
-        elcount (element-count-of-shape shape)
-        coords (int-array rank)
-        ridx (int-array (reverse (range rank)))
-        last-idx (aget ridx 0)]
-    (macro/macrolet
-     ;; The variable capture is intentional
-     [(inc-last-coords [] `(aset ~'coords ~'last-idx
-                                 (inc (aget ~'coords ~'last-idx))))
-      (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
-                         (aget ~'shape (aget ~'ridx ~'dim))))
-      (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
-      (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
-                        (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
-      (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
+  (do-elements-loop m coords idx el
+                    (el-fn idx (.get-nd m coords))))
 
-     (doseq [[dim idx] pinned-dims] (aset coords dim idx))
-     (dotimes [idx elcount]
-       (try
-         (el-fn idx (.get-nd m (vec coords)))
-         (catch Exception e
-           (println (format "e: %s idx: %s, coords: %s" e idx (vec coords)))
-           ;;(println (format "transformed coords: %s" (transform-coords
-           ;;(.domain-map m) coords)))
-           (println (.domain-map m))
-           (println (format "strides: %s" (vec (.strides (.domain-map m)))))))
-       (inc-last-coords)
-       (dotimes [dim rank]
-         (when-not (pinned-dims dim)
-           (when (dim-at-max?)
-             (roll-idx) (when-not (top-dim?) (carry-idx)))))))))
+
+;; (defn do-elements-indexed [m el-fn]
+;;   (let [shape (int-array (shape m))
+;;         rank (rank m)
+;;         elcount (element-count-of-shape shape)
+;;         coords (int-array rank)
+;;         ridx (int-array (reverse (range rank)))
+;;         last-idx (aget ridx 0)]
+;;     (macro/macrolet
+;;      ;; The variable capture is intentional
+;;      [(inc-last-coords [] `(aset ~'coords ~'last-idx
+;;                                  (inc (aget ~'coords ~'last-idx))))
+;;       (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
+;;                          (aget ~'shape (aget ~'ridx ~'dim))))
+;;       (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
+;;       (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
+;;                         (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
+;;       (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
+
+;;      ;;XXX--TODO -- convert to bottom ranges
+;;      ;;(doseq [[dim idx] pinned-dims] (aset coords dim idx))
+;;      (dotimes [idx elcount]
+;;        (try
+;;          (el-fn idx (.get-nd m (vec coords)))
+;;          (catch Exception e
+;;            (println (format "e: %s idx: %s, coords: %s" e idx (vec coords)))
+;;            ;;(println (format "transformed coords: %s" (transform-coords
+;;            ;;(.domain-map m) coords)))
+;;            (println (.domain-map m))
+;;            (println (format "strides: %s" (vec (.strides (.domain-map m)))))))
+;;        (inc-last-coords)
+;;        (dotimes [dim rank]
+;;          (when (dim-at-max?)
+;;            (roll-idx) (when-not (top-dim?) (carry-idx))))))))
 
 (defn do-elements [m el-fn]
   (do-elements-indexed m (fn [idx el] (el-fn el))))
@@ -380,7 +386,7 @@
   (resolve-type (type (first data))))
 
 (defn make-arrayspace-matrix
-  [impl-kw multi-array-kw & {:keys [shape type data offset strides pinned-dims distribution partition-count]}]
+  [impl-kw multi-array-kw & {:keys [shape type data offset strides distribution partition-count]}]
   (let [resolved-type (if data (resolve-type-from-data data) (resolve-type type))
         domain (make-domain multi-array-kw :shape shape)
         distribution (or distribution (make-distribution multi-array-kw
@@ -392,8 +398,7 @@
                                     :domain domain
                                     :distribution distribution
                                     :offset (or offset 0)
-                                    :strides strides
-                                    :pinned-dims pinned-dims)
+                                    :strides strides)
         api (ArrayspaceMatrixApi. impl-kw multi-array-kw resolved-type)]
     (println (format "strides: %s" strides))
     (ArrayspaceMatrix. api domain domain-map distribution resolved-type)))

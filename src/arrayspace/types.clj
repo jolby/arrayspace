@@ -99,3 +99,38 @@
 
 (defn required-storage-size [type count]
   (*  (/ (resolve-type-size type) Byte/SIZE) count))
+
+(defn sym-typed [sym type]
+  (with-meta sym {:tag type}))
+
+(defn gensym-typed [name type]
+  (sym-typed (gensym name) type))
+
+(defmacro def-sym-typed [name type]
+  (let [fname (symbol (str "sym-" name))]
+    `(defn ~fname [sym#]
+       (sym-typed sym# ~type))))
+
+(defmacro def-gensym-typed [name type]
+  (let [fname (symbol (str "gensym-" name))]
+    `(defn ~fname [sym#]
+       (gensym-typed sym# ~type))))
+
+(def-sym-typed "boolean" Boolean/TYPE)
+(def-sym-typed "char" Character/TYPE)
+(def-sym-typed "byte" Byte/TYPE)
+(def-sym-typed "short" Short/TYPE)
+(def-sym-typed "int" Integer/TYPE)
+(def-sym-typed "long" Long/TYPE)
+(def-sym-typed "float" Float/TYPE)
+(def-sym-typed "double" Double/TYPE)
+
+(def-gensym-typed "boolean" Boolean/TYPE)
+(def-gensym-typed "char" Character/TYPE)
+(def-gensym-typed "byte" Byte/TYPE)
+(def-gensym-typed "short" Short/TYPE)
+(def-gensym-typed "int" Integer/TYPE)
+(def-gensym-typed "long" Long/TYPE)
+(def-gensym-typed "float" Float/TYPE)
+(def-gensym-typed "double" Double/TYPE)
+
