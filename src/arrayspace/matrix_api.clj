@@ -308,73 +308,9 @@
   (do-elements-loop m coords idx el
                     (set-nd m coords (el-fn (.get-nd m coords)))))
 
-
-;;XXX--consolidate these two with a common macro body
-;; (defn do-elements!
-;;   [m el-fn]
-;;   (let [shape (int-array (shape m))
-;;         rank (rank m)
-;;         elcount (element-count-of-shape shape)
-;;         coords (int-array rank)
-;;         ridx (int-array (reverse (range rank)))
-;;         last-idx (aget ridx 0)]
-;;     (macro/macrolet
-;;      ;; The variable capture is intentional
-;;      [(inc-last-coords [] `(aset ~'coords ~'last-idx
-;;                                  (inc (aget ~'coords ~'last-idx))))
-;;       (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
-;;                           (aget ~'shape (aget ~'ridx ~'dim))))
-;;       (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
-;;       (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
-;;                            (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
-;;       (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
-;;      ;;XXX -- change to bottom-ranges
-;;      ;;(doseq [[dim idx] pinned-dims] (aset coords dim idx))
-;;      (dotimes [idx elcount]
-;;        (set-nd m (vec coords) (el-fn (.get-nd m (vec coords))))
-;;        (inc-last-coords)
-;;        (dotimes [dim rank]
-;;          (when (dim-at-max?)
-;;            (roll-idx) (when-not (top-dim?) (carry-idx))))))))
-
 (defn do-elements-indexed [m el-fn]
   (do-elements-loop m coords idx el
                     (el-fn idx (.get-nd m coords))))
-
-
-;; (defn do-elements-indexed [m el-fn]
-;;   (let [shape (int-array (shape m))
-;;         rank (rank m)
-;;         elcount (element-count-of-shape shape)
-;;         coords (int-array rank)
-;;         ridx (int-array (reverse (range rank)))
-;;         last-idx (aget ridx 0)]
-;;     (macro/macrolet
-;;      ;; The variable capture is intentional
-;;      [(inc-last-coords [] `(aset ~'coords ~'last-idx
-;;                                  (inc (aget ~'coords ~'last-idx))))
-;;       (dim-at-max? [] `(= (aget ~'coords (aget ~'ridx ~'dim))
-;;                          (aget ~'shape (aget ~'ridx ~'dim))))
-;;       (roll-idx []  `(aset ~'coords (aget ~'ridx ~'dim) 0))
-;;       (carry-idx [] `(aset ~'coords (aget ~'ridx (inc ~'dim))
-;;                         (inc (aget ~'coords (aget ~'ridx (inc ~'dim))))))
-;;       (top-dim? [] `(zero? (aget ~'ridx ~'dim)))]
-
-;;      ;;XXX--TODO -- convert to bottom ranges
-;;      ;;(doseq [[dim idx] pinned-dims] (aset coords dim idx))
-;;      (dotimes [idx elcount]
-;;        (try
-;;          (el-fn idx (.get-nd m (vec coords)))
-;;          (catch Exception e
-;;            (println (format "e: %s idx: %s, coords: %s" e idx (vec coords)))
-;;            ;;(println (format "transformed coords: %s" (transform-coords
-;;            ;;(.domain-map m) coords)))
-;;            (println (.domain-map m))
-;;            (println (format "strides: %s" (vec (.strides (.domain-map m)))))))
-;;        (inc-last-coords)
-;;        (dotimes [dim rank]
-;;          (when (dim-at-max?)
-;;            (roll-idx) (when-not (top-dim?) (carry-idx))))))))
 
 (defn do-elements [m el-fn]
   (do-elements-indexed m (fn [idx el] (el-fn el))))
