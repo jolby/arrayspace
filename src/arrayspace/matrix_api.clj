@@ -8,7 +8,7 @@
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
    [arrayspace.distributions.partitioned-buffer]
-   [arrayspace.types :refer [resolve-type]]
+   [arrayspace.types :refer [resolve-type resolve-type-from-data]]
    [core.matrix.protocols :refer :all]
    [core.matrix :refer [scalar? array?]]
    [core.matrix.implementations :as imp]
@@ -318,8 +318,6 @@
 (defn map-elements [m el-fn]
   (map el-fn (element-seq m)))
 
-(defn resolve-type-from-data [data]
-  (resolve-type (type (first data))))
 
 (defn make-arrayspace-matrix
   [impl-kw multi-array-kw & {:keys [shape type data offset strides distribution partition-count]}]

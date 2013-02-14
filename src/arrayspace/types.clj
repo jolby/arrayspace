@@ -90,6 +90,9 @@
 (defn resolve-type [t]
   (@*types* t))
 
+(defn resolve-type-from-data [data]
+  (resolve-type (type (first data))))
+
 (defn resolve-type-size [t]
   (get @*type-bytesize* (resolve-type t) Double/SIZE))
 
