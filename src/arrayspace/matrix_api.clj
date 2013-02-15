@@ -124,11 +124,11 @@
 
   (get-slice [m dimension i]
     {:pre [(and (>= dimension 0) (>= (dec (rank m)) dimension))]}
-    (let [shape (long-array (shape m))
+    (let [new-shape (object-array (shape m))
           strides (.strides (.domain-map m))
-          new-shape (drop 1 shape)
           slice-dim-bounds [i (inc i)]
           new-strides (long-array (drop-last strides))]
+      (aset new-shape dimension slice-dim-bounds)
       (if (empty? new-shape)
         ;;rank0 array == scalar value at index i
         (.get-1d distribution i)
@@ -205,7 +205,7 @@
     ;;XXX-- this is horrible performance-wise, but just trying to get it
     ;;Will create true Arrayspace ISeq/Iterator impls later
     (let [arr (make-array (:element-type (.api m))
-                          (element-count-of-shape (seq (shape (.domain m)))))]
+                          (element-count-of-shape (shape (.domain m))))]
       (do-elements-indexed m (fn [idx el] (aset arr idx el)))
       (seq arr)))
 
@@ -325,7 +325,7 @@
         domain (make-domain multi-array-kw :shape shape)
         distribution (or distribution (make-distribution multi-array-kw
                                                    :type resolved-type
-                                                   :element-count (element-count-of-shape shape)
+                                                   :element-count (element-count-of-shape (.shape domain))
                                                    :partition-count (or partition-count 1)
                                                    :data data))
         domain-map (make-domain-map :default
@@ -334,7 +334,7 @@
                                     :offset (or offset 0)
                                     :strides strides)
         api (ArrayspaceMatrixApi. impl-kw multi-array-kw resolved-type)]
-    (println (format "strides: %s" strides))
+    (println (format "strides: %s" (vec (.strides domain-map))))
     (ArrayspaceMatrix. api domain domain-map distribution resolved-type)))
 
 (def double-local-1d-java-array-impl

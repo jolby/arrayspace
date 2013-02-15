@@ -106,7 +106,7 @@ space to 1d"
         count (element-count-of-shape nshape)
         bottom-ranges (bottom-ranges-from-shape shape)
         top-ranges (top-ranges-from-shape shape)]
-    (OrdinalDomain. (long-array shape) rank bottom-ranges top-ranges)))
+    (OrdinalDomain. (long-array nshape) rank bottom-ranges top-ranges)))
 
 (defmethod make-domain-map :default
   [type-kw  & {:keys [domain distribution offset strides]}]
@@ -114,3 +114,33 @@ space to 1d"
   (LocalBlockDomainMap. domain distribution
                         (or offset 0)
                         (long-array (or strides (strides-of-shape (shape domain))))))
+
+(defn- print-ordinal-domain
+  [d #^java.io.Writer w]
+  (.write w "#:OrdinalDomain")
+  (.write w "{:shape ")
+  (print-method (vec (.shape d)) w)
+  (.write w ", :rank ")
+  (print-method (.rank d) w)
+  (.write w ", :bottom-ranges ")
+  (print-method (vec (.bottom-ranges d)) w)
+  (.write w ", :top-ranges ")
+  (print-method (vec (.top-ranges d)) w)
+  (.write w "}"))
+
+(defmethod print-method OrdinalDomain [d w]
+  (print-ordinal-domain d w))
+
+(defn- print-domain-map
+  [d #^java.io.Writer w]
+  (.write w "#:DomainMap")
+  (.write w "{:offset ")
+  (print-method (.offset d) w)
+  (.write w ", :strides ")
+  (print-method (vec (.strides d)) w)
+  (.write w ", :distribution ")
+  (print-method (.distribution d) w)
+  (.write w "}"))
+
+(defmethod print-method LocalBlockDomainMap [d w]
+  (print-domain-map d w))
