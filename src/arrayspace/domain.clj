@@ -6,6 +6,7 @@
    [arrayspace.types :refer [sym-typed sym-long sym-int
                              gensym-typed gensym-long gensym-int]]))
 
+
 (defn valid-coords? [coords shape]
   (and (= (count coords) (count shape))
        (every? (fn [[k v]] (and (>= k 0) (< k v)))

@@ -5,6 +5,7 @@
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
    [arrayspace.domain :refer [strides-of-shape element-count-of-shape
                               flatten-coords do-elements-loop]]
+   [arrayspace.java-array-utils :refer [adel]]
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
    [arrayspace.distributions.partitioned-buffer]
@@ -113,22 +114,17 @@
     (get-slice m 0 i))
 
   (get-column [m i]
-    ;;XXX--TODO create col-major domain/domain map over this distribution
     (assert (= (rank domain) 2))
-    (map #(.get-1d distribution
-                   (transform-coords domain-map [%1 i]))
-         (range (dimension-count m 1))))
+    (get-slice m 1 i))
 
   (get-major-slice [m i]
     (get-slice m 0 i))
 
   (get-slice [m dimension i]
     {:pre [(and (>= dimension 0) (>= (dec (rank m)) dimension))]}
-    (let [new-shape (object-array (shape m))
+    (let [new-shape (object-array (drop 1 (shape m)))
           strides (.strides (.domain-map m))
-          slice-dim-bounds [i (inc i)]
-          new-strides (long-array (drop-last strides))]
-      (aset new-shape dimension slice-dim-bounds)
+          new-strides (adel strides dimension)]
       (if (empty? new-shape)
         ;;rank0 array == scalar value at index i
         (.get-1d distribution i)
@@ -306,11 +302,10 @@
 (defn do-elements!
   [m el-fn]
   (do-elements-loop m coords idx el
-                    (set-nd m coords (el-fn (.get-nd m coords)))))
+                    (set-nd m coords (el-fn el))))
 
 (defn do-elements-indexed [m el-fn]
-  (do-elements-loop m coords idx el
-                    (el-fn idx (.get-nd m coords))))
+  (do-elements-loop m coords idx el (el-fn idx el)))
 
 (defn do-elements [m el-fn]
   (do-elements-indexed m (fn [idx el] (el-fn el))))
@@ -334,7 +329,6 @@
                                     :offset (or offset 0)
                                     :strides strides)
         api (ArrayspaceMatrixApi. impl-kw multi-array-kw resolved-type)]
-    (println (format "strides: %s" (vec (.strides domain-map))))
     (ArrayspaceMatrix. api domain domain-map distribution resolved-type)))
 
 (def double-local-1d-java-array-impl

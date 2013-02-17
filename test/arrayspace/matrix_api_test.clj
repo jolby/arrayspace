@@ -35,13 +35,13 @@
 (use-fixtures :each basic-array-fixtures)
 
 
-;; (deftest java-array-compliance-test
-;;  (testing "Local Contiguous Java Array Distributions"
-;;    (core.matrix.compliance-tester/compliance-test api/double-local-1d-java-array-impl)))
+(deftest java-array-compliance-test
+ (testing "Local Contiguous Java Array Distributions"
+   (core.matrix.compliance-tester/compliance-test api/double-local-1d-java-array-impl)))
 
-;; (deftest local-buffer-compliance-test
-;;   (testing "Local Contiguous Buffer Distributions"
-;;     (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
+(deftest local-buffer-compliance-test
+  (testing "Local Contiguous Buffer Distributions"
+    (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
 
 ;; (deftest partitioned-buffer-compliance-test
 ;;   (testing "Partitioned Contiguous Buffer Distributions"
@@ -72,6 +72,29 @@
     ;; (println (format "scale m3 X 2: %s" (vec (scale m3 2))))
     ;; (println (format "m3 assign!: %s" (vec (assign! m3 (vec (range 27 (* 2 27)))))))
     )
+
+(deftest domain-slice-test
+  (testing "testing that coords are properly translated in slices"
+    (let [s0-0 (slice m3 0 0)
+          s0-1 (slice m3 0 1)
+          s1-0 (slice m3 1 0)
+          s1-2 (slice m3 1 2)
+          s2-0 (slice m3 2 0)
+          s2-2 (slice m3 2 2)]
+      (is (= [3 1] (vec (.strides (.domain-map s0-0)))))
+      (is (= [9 1] (vec (.strides (.domain-map s1-0)))))
+      (is (= [9 3] (vec (.strides (.domain-map s2-0)))))
+      (is (= 0 (.transform-coords (.domain-map s0-0) [0 0])))
+      (is (= 4 (.transform-coords (.domain-map s0-0) [1 1])))
+      (is (= 8 (.transform-coords (.domain-map s0-0) [2 2])))
+      (is (= 6 (.transform-coords (.domain-map s1-2) [0 0])))
+      (is (= 16 (.transform-coords (.domain-map s1-2) [1 1])))
+      (is (= 26 (.transform-coords (.domain-map s1-2) [2 2])))
+      (is (= 2 (.transform-coords (.domain-map s2-2) [0 0])))
+      (is (= 14 (.transform-coords (.domain-map s2-2) [1 1])))
+      (is (= 26 (.transform-coords (.domain-map s2-2) [2 2])))
+      )))
+
 
 (deftest slice-test
   (letfn [(do-slice [m dim idx exp-shp exp-dat]
