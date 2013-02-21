@@ -4,7 +4,7 @@
     :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
    [arrayspace.core :refer [make-distribution]]
    [arrayspace.types :refer [resolve-type resolve-type-coercion-fn required-storage-size *types*]]
-   [arrayspace.distribution :refer [set-data-1d!]])
+   [arrayspace.distribution :refer [set-data-flat!]])
   (:import (java.nio ByteBuffer CharBuffer ShortBuffer
                      IntBuffer LongBuffer FloatBuffer DoubleBuffer)))
 
@@ -29,10 +29,10 @@
           :start ~startvar
           :end ~endvar})
        LinearIndexedAccess
-       (get-1d [this# idx#]
+       (get-flat [this# idx#]
          (.get ~bufvar (int idx#)))
        LinearIndexedMutation
-       (set-1d! [this# idx# val#]
+       (set-flat! [this# idx# val#]
          (.put ~bufvar (int idx#) (~coercion-fn val#))))))
 
 (def-primitive-buffer-dist ByteBuffer Byte/TYPE)
@@ -77,5 +77,5 @@
   {:pre [(not (nil? element-count))]}
   (let [dist (make-buffer-distribution type element-count start
                                        (or end (dec element-count)))]
-    (when  data (set-data-1d! dist data))
+    (when  data (set-data-flat! dist data))
     dist))

@@ -2,7 +2,7 @@
   (:require [arrayspace.protocols :refer [Distribution LinearIndexedAccess LinearIndexedMutation]]
             [arrayspace.core :refer [make-distribution]]
             [arrayspace.types :refer [resolve-type resolve-type-size]]
-            [arrayspace.distribution :refer [set-data-1d!]]))
+            [arrayspace.distribution :refer [set-data-flat!]]))
 ;;
 ;; Simple basic type used in local computations
 ;;
@@ -14,10 +14,10 @@
      :storage array
      :size size-in-bytes})
   LinearIndexedAccess
-  (get-1d [this idx]
+  (get-flat [this idx]
     (aget array idx))
   LinearIndexedMutation
-  (set-1d! [this idx val]
+  (set-flat! [this idx val]
     (try
       (aset array idx val)
     (catch Throwable t
@@ -34,5 +34,5 @@
   {:pre [(not (nil? element-count))]}
   (let [arr (make-array (resolve-type type) element-count)
         dist (ContiguousJavaArrayDistribution. arr element-count)]
-    (when  data (set-data-1d! dist data))
+    (when  data (set-data-flat! dist data))
     dist))

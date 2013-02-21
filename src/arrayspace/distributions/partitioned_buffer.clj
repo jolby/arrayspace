@@ -5,7 +5,7 @@
      [arrayspace.core :refer [make-distribution]]
      [arrayspace.types
       :refer [resolve-type required-storage-size]]
-     [arrayspace.distribution :refer [set-data-1d!]]
+     [arrayspace.distribution :refer [set-data-flat!]]
      [arrayspace.distributions.contiguous-buffer
       :refer [cast-buffer-type distribution-for-type make-buffer-distribution]]))
 
@@ -46,13 +46,13 @@
      :storage buffer-chunks
      :size size})
   LinearIndexedAccess
-  (get-1d [this idx]
+  (get-flat [this idx]
     (when-let [chunk (binary-range-search buffer-chunks idx chunk-contains-index? chunk-lt-index?)]
       ;;(println this)
       ;;(println (format "Got idx: %d, real addr: %d" idx (- idx (.start chunk))))
       (.get (.buf chunk) (int (- idx (.start chunk))) )))
   LinearIndexedMutation
-  (set-1d! [this idx val]
+  (set-flat! [this idx val]
     (when-let [chunk (binary-range-search buffer-chunks idx chunk-contains-index? chunk-lt-index?)]
     (.put (.buf chunk) (- idx (.start chunk)) val))))
 
@@ -82,5 +82,5 @@
   {:pre [(not (nil? element-count))
          (not (nil? partition-count))]}
   (let [dist (make-partitioned-buffer-distribution type element-count partition-count)]
-    (when  data (set-data-1d! dist data))
+    (when  data (set-data-flat! dist data))
     dist))

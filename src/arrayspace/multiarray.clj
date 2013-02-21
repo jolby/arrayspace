@@ -14,10 +14,10 @@
   (rank [this] (.rank domain))
   IndexedAccess
   (mget [this idxs]
-    (.get-1d distribution (.transform-coords domain-map idxs)))
+    (.get-flat distribution (.transform-coords domain-map idxs)))
   IndexedMutation
   (mset! [this idxs val]
-    (.set-1d! distribution (.transform-coords domain-map idxs) val)))
+    (.set-flat! distribution (.transform-coords domain-map idxs) val)))
 
 (defmethod make-multi-array :default
   [array-type-kw & {:keys [domain distribution data-map shape type data]}]

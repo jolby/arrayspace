@@ -1,7 +1,7 @@
 (ns arrayspace.matrix-api
   (:require
    [clojure.tools.macro :as macro]
-   [arrayspace.protocols :refer :all :exclude [get-1d]]
+   [arrayspace.protocols :refer :all]
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
    [arrayspace.domain :refer [strides-of-shape element-count-of-shape
                               flatten-coords do-elements-loop]]
@@ -10,20 +10,66 @@
    [arrayspace.distributions.contiguous-buffer]
    [arrayspace.distributions.partitioned-buffer]
    [arrayspace.types :refer [resolve-type resolve-type-from-data]]
-   [core.matrix.protocols :refer :all]
-   [core.matrix :refer [scalar? array?]]
-   [core.matrix.implementations :as imp]
-   [core.matrix.impl.persistent-vector]))
+   [clojure.core.matrix.protocols :refer :all]
+   [clojure.core.matrix :refer [scalar? array?]]
+   [clojure.core.matrix.implementations :as imp]
+   [clojure.core.matrix.impl.persistent-vector]))
 
-(declare make-arrayspace-matrix do-elements do-elements-indexed do-elements!)
-
+(declare coerce-data make-arrayspace-matrix do-elements do-elements-indexed do-elements!)
 
 (defn TODO []
   ;;(throw (Exception. "TODO- NOT IMPLEMENTED YET"))
   nil)
 
+(deftype ArrayspaceMatrixSeq
+    [array ^Long idx]
+
+  clojure.lang.IPersistentCollection
+  (empty [this] ())
+  (cons [this o] (clojure.lang.Cons o this))
+  (equiv [this o] (.equals array o))
+
+  java.util.Collection
+  (contains [this o] (boolean (some #(= % o) this)))
+  (containsAll [this c] (every? #(.contains this %) c))
+  (isEmpty [_] (zero? (int (- (count array) idx))))
+  (toArray [this] (into-array Object this))
+  (toArray [this arr]
+    (if (>= (count arr) (int (- (count array) idx)))
+      (do
+        (dotimes [i (int (- (count array) idx))]
+          (aset arr i (.nth array i)))
+        arr)
+      (into-array Object this)))
+  (size [_] (int (- (count array) idx)))
+  (add [_ o] (throw (UnsupportedOperationException.)))
+  (addAll [_ c] (throw (UnsupportedOperationException.)))
+  (clear [_] (throw (UnsupportedOperationException.)))
+  (^boolean remove [_ o] (throw (UnsupportedOperationException.)))
+  (removeAll [_ c] (throw (UnsupportedOperationException.)))
+  (retainAll [_ c] (throw (UnsupportedOperationException.)))
+
+
+  clojure.lang.Sequential
+  clojure.lang.Seqable
+  (seq [this] this)
+  
+  clojure.lang.ISeq
+  (first [this] (.get-slice array 0 idx))
+  (next [this] (if (>= idx (.count array)) nil 
+                   (ArrayspaceMatrixSeq. array (inc idx))))
+  (more [this] (if (>= idx (.count array)) ()
+                   (ArrayspaceMatrixSeq. array (inc idx))))
+
+  clojure.lang.IndexedSeq
+  (index [this] idx)
+
+  clojure.lang.Counted
+  (count [this]
+    (int (- (count array) idx))))
+
 (deftype ArrayspaceMatrix
-    [api domain domain-map distribution element-type]
+    [implementation-key multi-array-key domain domain-map distribution element-type]
 
   Object
   (equals [m o]
@@ -54,11 +100,36 @@
   (nth [m i]
     (get-slice m 0 i))
 
+  java.util.Collection
+  (contains [m o] (boolean (some #(= % o) (element-seq m))))
+  (containsAll [m c] (every? #(.contains m %) c))
+  (isEmpty [m] (zero? (count m)))
+  (toArray [m] 
+    (let [arr (make-array Object ;;(:element-type (.api m))
+                          (element-count-of-shape (shape (.domain m))))]
+      (do-elements-indexed m (fn [idx el] (aset arr idx el)))
+      arr))
+  (toArray [m arr]
+    (if (>= (count arr) (int (count m)))
+      (do  (do-elements-indexed m (fn [idx el] (aset arr idx el)))
+           arr)
+      (let [arr (make-array Object ;;(:element-type (.api m))
+                            (element-count-of-shape (shape (.domain m))))]
+        (do-elements-indexed m (fn [idx el] (aset arr idx el)))
+        arr)))
+  (size [m] (int (count m)))
+  (add [_ o] (throw (UnsupportedOperationException.)))
+  (addAll [_ c] (throw (UnsupportedOperationException.)))
+  (clear [_] (throw (UnsupportedOperationException.)))
+  (^boolean remove [_ o] (throw (UnsupportedOperationException.)))
+  (removeAll [_ c] (throw (UnsupportedOperationException.)))
+  (retainAll [_ c] (throw (UnsupportedOperationException.)))
+  
   clojure.lang.Sequential
-
   clojure.lang.Seqable
   (seq [m]
-    (map (fn [idx] (get-slice m 0 idx)) (range (first (shape m)))))
+    (ArrayspaceMatrixSeq. m 0))
+    ;;(map (fn [idx] (get-slice m 0 idx)) (range (first (shape m)))))
 
   Domain
   (shape [m] (vec (shape domain)))
@@ -66,7 +137,16 @@
 
   PImplementation
   (implementation-key [m] (implementation-key api))
-  (construct-matrix [m data] (construct-matrix api data))
+  (construct-matrix [m data]
+    (let [vdata (coerce-data m data) ;;(vec (seq data))
+          flat-data (vec (flatten (seq vdata)))
+          data-shape (vec (get-shape vdata))
+          - (when (empty? data-shape)(throw (Exception. (str "shape cannot be empty: " data ", vdata: " vdata ", data-shape: " data-shape))))]
+
+      (make-arrayspace-matrix (:implementation-key api) (:multi-array-key api)
+                              :shape data-shape
+                              :type element-type
+                              :data flat-data)))
   (new-vector [m length] (new-vector api length))
   (new-matrix [m rows columns] (new-matrix api rows columns))
   (new-matrix-nd [m shape] (new-matrix-nd api shape))
@@ -90,23 +170,33 @@
   PIndexedAccess
   (get-1d [m row]
           (assert (= (rank domain) 1))
-          (.get-1d distribution row))
+          (.get-flat distribution row))
   (get-2d [m row column]
           (assert (= (rank domain) 2))
-          (.get-1d distribution (transform-coords domain-map [row column])))
+          (.get-flat distribution (transform-coords domain-map [row column])))
   (get-nd [m indexes]
-          (.get-1d distribution (transform-coords domain-map indexes)))
+          (.get-flat distribution (transform-coords domain-map indexes)))
 
   PIndexedSetting
   (set-1d [m row v]
           (assert (= (rank domain) 1))
-          (.set-1d! distribution row v))
+          (.set-flat! distribution row v))
   (set-2d [m row column v]
           (assert (= (rank domain) 2))
-          (.set-1d! distribution (transform-coords domain-map [row column]) v))
+          (.set-flat! distribution (transform-coords domain-map [row column]) v))
   (set-nd [m indexes v]
-          (.set-1d! distribution (transform-coords domain-map indexes) v))
+          (.set-flat! distribution (transform-coords domain-map indexes) v))
   (is-mutable? [m] true)
+
+  PIndexedSettingMutable
+  (set-1d! [m row v]
+          (assert (= (rank domain) 1))
+          (.set-flat! distribution row v))
+  (set-2d! [m row column v]
+          (assert (= (rank domain) 2))
+          (.set-flat! distribution (transform-coords domain-map [row column]) v))
+  (set-nd! [m indexes v]
+          (.set-flat! distribution (transform-coords domain-map indexes) v))
 
   PMatrixSlices
   (get-row [m i]
@@ -127,7 +217,7 @@
           new-strides (adel strides dimension)]
       (if (empty? new-shape)
         ;;rank0 array == scalar value at index i
-        (.get-1d distribution i)
+        (.get-flat distribution i)
         ;;rank - dim+1 array
         (make-arrayspace-matrix
          (:implementation-key api)
@@ -150,21 +240,25 @@
 
   PConversion
   (convert-to-nested-vectors [m]
-    (let [eseq (element-seq m)
-          s (shape m)]
-      (if-not (count s) (vec eseq)
-              (loop [countdown (count s) revshapes (reverse s) accum eseq]
-                (if (zero? countdown) (first accum)
-                    (recur (dec countdown)
-                           (rest revshapes)
-                         (map vec (partition (first revshapes) accum))))))))
+    ;;(println (format "XXX -- CNV: m: %s" m))
+    (try 
+      (let [eseq (element-seq m)
+            s (shape m)]
+        (if-not (count s) (vec eseq)
+                (loop [countdown (count s) revshapes (reverse s) accum eseq]
+                  (if (zero? countdown) (first accum)
+                      (recur (dec countdown)
+                             (rest revshapes)
+                             (map vec (partition (first revshapes) accum)))))))
+      (catch Exception e
+        (do (println (format "XXX -- CNV: m: %s, ex: %s" m e)) nil))))
   PCoercion
   (coerce-param [m param]
     (cond
      (is-scalar? param) param
      (instance? ArrayspaceMatrix param) param
-     (array? param) (construct-matrix api (convert-to-nested-vectors param))
-     :default (construct-matrix api (convert-to-nested-vectors param))))
+     (array? param) (construct-matrix m (convert-to-nested-vectors param))
+     :default (construct-matrix m (convert-to-nested-vectors param))))
 
   PReshaping
   (reshape [m shape] nil)
@@ -178,7 +272,7 @@
     (element-map m - a))
 
   PSummable
-  (sum [m]
+  (element-sum [m]
     (element-reduce m +))
 
   PMatrixMultiply
@@ -237,7 +331,6 @@
 ;;     ([m arr] nil)
 ;;     ([m arr start length] nil)))
 
-
 (defrecord ArrayspaceMatrixApi
     [implementation-key multi-array-key element-type]
 
@@ -250,15 +343,16 @@
   (construct-matrix [m data]
     "Returns a new matrix containing the given data. Data should be in the form
      of either nested sequences or a valid existing matrix"
-    (let [vdata (vec (seq data))
-          flat-data (vec (flatten vdata))
-          data-shape (vec (get-shape vdata))
-          - (when (empty? data-shape)(throw (Exception. "shape cannot be empty")))]
+    ;;(let [vdata (vec (seq data))
+    ;;      flat-data (vec (flatten vdata))
+    ;;      data-shape (vec (get-shape vdata))
+    ;;      - (when (empty? data-shape)(throw (Exception. "shape cannot be empty")))]
 
-      (make-arrayspace-matrix implementation-key multi-array-key
-                              :shape data-shape
-                              :type element-type
-                              :data flat-data)))
+    ;;(make-arrayspace-matrix implementation-key multi-array-key
+    ;;                          :shape data-shape
+    ;;                          :type element-type
+    ;;                          :data flat-data))
+    )
 
   (new-vector [m length]
     "Returns a new vector (1D column matrix) of the given length."
@@ -314,6 +408,13 @@
   (map el-fn (element-seq m)))
 
 
+(defn maybe-coerce-data [m param]
+  (cond
+   (is-scalar? param) param
+   (instance? ArrayspaceMatrix param) param
+   (array? param) (convert-to-nested-vectors param)
+   :default nil))
+
 (defn make-arrayspace-matrix
   [impl-kw multi-array-kw & {:keys [shape type data offset strides distribution partition-count]}]
   (let [resolved-type (if data (resolve-type-from-data data) (resolve-type type))
@@ -334,38 +435,38 @@
 (def double-local-1d-java-array-impl
   (make-arrayspace-matrix :double-local-1d-java-array
                           :local-1d-java-array
-                          :shape [1]
+                          :shape [3 3 3]
                           :type double))
 
 (def double-local-buffer-impl
   (make-arrayspace-matrix :double-local-buffer
                           :local-byte-buffer
-                          :shape [1]
+                          :shape [3 3 3]
                           :type double))
 
 
 (def double-partitioned-buffer-impl
   (make-arrayspace-matrix :double-partitioned-buffer
                           :partitioned-byte-buffer
-                          :shape [1]
+                          :shape [3 3 3]
                           :type double))
 
 (def int-local-1d-java-array-impl
   (make-arrayspace-matrix :int-local-1d-java-array
                           :local-1d-java-array
-                          :shape [1]
+                          :shape [3 3 3]
                           :type int))
 
 (def int-local-buffer-impl
   (make-arrayspace-matrix :int-local-buffer
                           :local-byte-buffer
-                          :shape [1]
+                          :shape [3 3 3]
                           :type int))
 
 (def int-partitioned-buffer-impl
   (make-arrayspace-matrix :int-partitioned-buffer
                           :partitioned-byte-buffer
-                          :shape [1]
+                          :shape [3 3 3]
                           :type int))
 
 

@@ -3,18 +3,23 @@
      [clojure.test :refer :all]
      [arrayspace.multiarray :refer :all]
      [arrayspace.matrix-api :as api]
-     [core.matrix :refer :all]
-     [core.matrix.protocols :refer [get-slice]]
-     [core.matrix.compliance-tester]
-     [core.matrix.impl.persistent-vector]))
+     [clojure.core.matrix :refer :all]
+     [clojure.core.matrix.protocols :refer [get-slice]]
+     [clojure.core.matrix.compliance-tester]
+     [clojure.core.matrix.impl.persistent-vector]))
 
+(def ^:dynamic data1d nil)
 (def ^:dynamic data2d nil)
 (def ^:dynamic data3d nil)
+(def ^:dynamic m1 nil)
 (def ^:dynamic m2 nil)
 (def ^:dynamic m3 nil)
 
 (defn basic-array-fixtures [f]
-  (let [d2d [[1 2 3][4 5 6][7 8 9]]
+  (let [d1d [1 2 3 4 5 6 7 8 9
+            10 11 12 13 14 15 16 17 18 
+            19 20 21 22 23 24 25 26 27]
+        d2d [[1 2 3][4 5 6][7 8 9]]
         d3d [[[1 2 3]
               [4 5 6]
               [7 8 9]]
@@ -24,10 +29,13 @@
              [[19 20 21]
               [22 23 24]
               [25 26 27]]]
+        ma1 (matrix api/int-local-buffer-impl d1d)
         ma2 (matrix api/int-local-buffer-impl d2d)
         ma3 (matrix api/int-local-buffer-impl d3d)]
-    (binding [data2d d2d
+    (binding [data1d d1d
+              data2d d2d
               data3d d3d
+              m1 ma1
               m2 ma2
               m3 ma3]
       (f))))
@@ -35,17 +43,17 @@
 (use-fixtures :each basic-array-fixtures)
 
 
-(deftest java-array-compliance-test
- (testing "Local Contiguous Java Array Distributions"
-   (core.matrix.compliance-tester/compliance-test api/double-local-1d-java-array-impl)))
+;; (deftest java-array-compliance-test
+;;  (testing "Local Contiguous Java Array Distributions"
+;;    (clojure.core.matrix.compliance-tester/compliance-test api/double-local-1d-java-array-impl)))
 
 (deftest local-buffer-compliance-test
   (testing "Local Contiguous Buffer Distributions"
-    (core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
+    (clojure.core.matrix.compliance-tester/compliance-test api/int-local-buffer-impl)))
 
 ;; (deftest partitioned-buffer-compliance-test
 ;;   (testing "Partitioned Contiguous Buffer Distributions"
-;;   (core.matrix.compliance-tester/compliance-test api/int-partitioned-buffer-impl)))
+;;   (clojure.core.matrix.compliance-tester/compliance-test api/int-partitioned-buffer-impl)))
 
 (deftest basic-api-test
   (testing "do-elements works"
@@ -63,15 +71,19 @@
     (is (= m3 m3))
     (is (equals m3 data3d)))
 
-  (testing "basic type introspection and predicates"
+  (testing "type introspection and predicates"
+    (is (true? (vec? m1)))
     (is (true? (array? m2)))
     (is (true? (matrix? m2)))
     (is (true? (array? m3))))
 
-    ;; (println (format "scale m2 X 2: %s" (vec (scale m2 2))))
-    ;; (println (format "scale m3 X 2: %s" (vec (scale m3 2))))
-    ;; (println (format "m3 assign!: %s" (vec (assign! m3 (vec (range 27 (* 2 27)))))))
-    )
+  (testing "scaling"
+    (is (equals (vec (range 2 (* 2 27) 2)) (vec (scale m1 2))))
+    (println (format "scale m2 X 2: %s" (vec (scale m2 2))))
+    (is (equals [[2 4 6][8 10 12][14 16 18]] (scale m2 2)))
+    (println (format "scale m3 X 2: %s" (vec (scale m3 2)))))
+  (testing "assignment"
+    (println (format "m1 assign!: %s" (vec (assign! m1 (vec (range 27 (* 2 27)))))))))
 
 (deftest domain-slice-test
   (testing "testing that coords are properly translated in slices"
