@@ -5,7 +5,7 @@
      [arrayspace.core :refer [make-distribution]]
      [arrayspace.types
       :refer [resolve-type required-storage-size]]
-     [arrayspace.distribution :refer [set-data-1d!]]
+     [arrayspace.distribution :refer [set-data-flat!]]
      [arrayspace.distributions.contiguous-buffer
       :refer [cast-buffer-type distribution-for-type make-buffer-distribution]]))
 
@@ -45,42 +45,43 @@
     {:type (type this)
      :storage buffer-chunks
      :size size})
+  (copy [this] (throw (UnsupportedOperationException.)))
   LinearIndexedAccess
-  (get-1d [this idx]
+  (get-flat [this idx]
     (when-let [chunk (binary-range-search buffer-chunks idx chunk-contains-index? chunk-lt-index?)]
       ;;(println this)
       ;;(println (format "Got idx: %d, real addr: %d" idx (- idx (.start chunk))))
       (.get (.buf chunk) (int (- idx (.start chunk))) )))
   LinearIndexedMutation
-  (set-1d! [this idx val]
+  (set-flat! [this idx val]
     (when-let [chunk (binary-range-search buffer-chunks idx chunk-contains-index? chunk-lt-index?)]
     (.put (.buf chunk) (- idx (.start chunk)) val))))
 
 (defn make-partition-chunks
-  [type partition-count count-per-buf chunk-storage-size]
+  [element-type partition-count count-per-buf chunk-storage-size]
   (loop [accum []
          pnum 0
          pstart 0
          pend (dec count-per-buf)]
     (if (= pnum partition-count)
       accum
-      (recur (conj accum (make-buffer-distribution type chunk-storage-size pstart pend))
+      (recur (conj accum (make-buffer-distribution element-type chunk-storage-size pstart pend))
              (inc pnum)
              (+ pstart count-per-buf)
              (+ pend count-per-buf)))))
 
 (defn make-partitioned-buffer-distribution
-  [type element-count partition-count]
-  (let [type (resolve-type type)
+  [element-type element-count partition-count]
+  (let [type (resolve-type element-type)
         count-per-buf (/ element-count partition-count)
         chunk-storage-size (required-storage-size type count-per-buf)
         buffer-chunks (make-partition-chunks type partition-count count-per-buf chunk-storage-size)]
     (PartitionedIntBufferDistribution. buffer-chunks element-count)))
 
 (defmethod make-distribution :partitioned-byte-buffer
-  [type-kw & {:keys [element-count partition-count type data]}]
+  [type-kw & {:keys [element-count partition-count element-type data]}]
   {:pre [(not (nil? element-count))
          (not (nil? partition-count))]}
-  (let [dist (make-partitioned-buffer-distribution type element-count partition-count)]
-    (when  data (set-data-1d! dist data))
+  (let [dist (make-partitioned-buffer-distribution element-type element-count partition-count)]
+    (when  data (set-data-flat! dist data))
     dist))

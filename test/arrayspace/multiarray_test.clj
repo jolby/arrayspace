@@ -21,28 +21,28 @@ with each dim having count-per-dim elements"
   [dim idx]
   (map vec (reductions conj (list idx) (take (dec dim) (repeat 0)))))
 
-(defn jarr [type shape]
-  (make-multi-array :default :type type :shape shape))
+(defn jarr [element-type shape]
+  (make-multi-array :default :element-type element-type :shape shape))
 
-(defn buffarr [type shape]
-  (make-multi-array :local-byte-buffer :type type :shape shape))
+(defn buffarr [element-type shape]
+  (make-multi-array :local-byte-buffer :element-type element-type :shape shape))
 
-(defn pbuffarr [type shape]
+(defn pbuffarr [element-type shape]
   (let [element-count (element-count-of-shape shape)
         pdist (make-distribution :partitioned-byte-buffer
-                                 :type type
+                                 :element-type element-type
                                  :element-count element-count
                                  :partition-count (count shape))]
     (make-multi-array :partitioned-byte-buffer
-                      :type type
+                      :element-type element-type
                       :shape shape
                       :element-count element-count
                       :distribution pdist)))
 
-(defn test-mget-for-type [type type-val shape shape-idx]
-  (let [a (jarr type shape)
-        buf (buffarr type shape)
-        pbuf (pbuffarr type shape)]
+(defn test-mget-for-type [element-type type-val shape shape-idx]
+  (let [a (jarr element-type shape)
+        buf (buffarr element-type shape)
+        pbuf (pbuffarr element-type shape)]
     (mset! a shape-idx type-val)
     (mset! buf shape-idx type-val)
     (mset! pbuf shape-idx type-val)

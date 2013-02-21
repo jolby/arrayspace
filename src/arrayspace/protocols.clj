@@ -51,7 +51,8 @@
    Counted protocols for low level access to their elements."
   (descriptor [this] 
     "Return the descriptor containing low-level storage and
-  layout information for this Distribution"))
+  layout information for this Distribution")
+  (copy [this] "Returns a copy of this distribution"))
 
 
 ;; XXX--clashes with matrix-api
@@ -68,16 +69,16 @@
   (mget [m indexes]))
 
 (defprotocol LinearIndexedAccess
-  (get-1d [this ^long indx] 
-    "Get the element at the provided index based on a 1d linear address model"))
+  "Get the element at the provided index based on a 1d flat linear address model"
+  (get-flat [this ^long indx] ))
 
 (defprotocol IndexedMutation
   "Protocol for indexed write access to arrays of any dimensions."
   (mset! [m indexes val]))
 
 (defprotocol LinearIndexedMutation
-  "Protocol for indexed write access to arrays of any dimensions."
-  (set-1d! [m idx val]))
+  "Protocol for indexed write access to a flat 1d linear address model."
+  (set-flat! [m idx val]))
 
 (defprotocol Sliceable
   "Protocol for taking slices of arrays of any dimensions"
