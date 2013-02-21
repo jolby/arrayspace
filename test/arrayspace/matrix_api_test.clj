@@ -17,7 +17,7 @@
 
 (defn basic-array-fixtures [f]
   (let [d1d [1 2 3 4 5 6 7 8 9
-            10 11 12 13 14 15 16 17 18 
+            10 11 12 13 14 15 16 17 18
             19 20 21 22 23 24 25 26 27]
         d2d [[1 2 3][4 5 6][7 8 9]]
         d3d [[[1 2 3]
@@ -43,9 +43,9 @@
 (use-fixtures :each basic-array-fixtures)
 
 
-;; (deftest java-array-compliance-test
-;;  (testing "Local Contiguous Java Array Distributions"
-;;    (clojure.core.matrix.compliance-tester/compliance-test api/double-local-1d-java-array-impl)))
+(deftest java-array-compliance-test
+ (testing "Local Contiguous Java Array Distributions"
+   (clojure.core.matrix.compliance-tester/compliance-test api/double-local-1d-java-array-impl)))
 
 (deftest local-buffer-compliance-test
   (testing "Local Contiguous Buffer Distributions"
@@ -54,6 +54,12 @@
 ;; (deftest partitioned-buffer-compliance-test
 ;;   (testing "Partitioned Contiguous Buffer Distributions"
 ;;   (clojure.core.matrix.compliance-tester/compliance-test api/int-partitioned-buffer-impl)))
+
+(defn vector-mset [im]
+  (let [m (matrix im [1 2 3])]
+    (is (equals [1 2 4] (mset m 2 4)))
+    (is (equals [1 2 3] m))))
+
 
 (deftest basic-api-test
   (testing "do-elements works"
@@ -79,11 +85,12 @@
 
   (testing "scaling"
     (is (equals (vec (range 2 (* 2 27) 2)) (vec (scale m1 2))))
-    (println (format "scale m2 X 2: %s" (vec (scale m2 2))))
+    ;;(println (format "scale m2 X 2: %s" (vec (scale m2 2))))
     (is (equals [[2 4 6][8 10 12][14 16 18]] (scale m2 2)))
-    (println (format "scale m3 X 2: %s" (vec (scale m3 2)))))
+    ;;(println (format "scale m3 X 2: %s" (vec (scale m3 2)))))
   (testing "assignment"
-    (println (format "m1 assign!: %s" (vec (assign! m1 (vec (range 27 (* 2 27)))))))))
+    ;;(println (format "m1 assign!: %s" (vec (assign! m1 (vec (range 27 (* 2 27)))))))
+    )))
 
 (deftest domain-slice-test
   (testing "testing that coords are properly translated in slices"
@@ -123,3 +130,22 @@
     (do-slice m3 2 0 [3 3] [[1 4 7][10 13 16][19 22 25]])
     (do-slice m3 2 2 [3 3] [[3 6 9][12 15 18][21 24 27]])))
 
+
+(comment
+  (defn mk-world []
+  (def ^:dynamic *d1d* [1 2 3 4 5 6 7 8 9
+                         10 11 12 13 14 15 16 17 18
+                         19 20 21 22 23 24 25 26 27])
+  (def ^:dynamic *d2d* [[1 2 3][4 5 6][7 8 9]])
+  (def ^:dynamic *d3d* [[[1 2 3]
+              [4 5 6]
+              [7 8 9]]
+             [[10 11 12]
+              [13 14 15]
+              [16 17 18]]
+             [[19 20 21]
+              [22 23 24]
+              [25 26 27]]])
+  (def ^:dynamic *m1* (clojure.core.matrix/matrix arrayspace.matrix-api/int-local-buffer-impl *d1d*))
+  (def ^:dynamic *m2* (clojure.core.matrix/matrix arrayspace.matrix-api/int-local-buffer-impl *d2d*))
+  (def ^:dynamic *m3* (clojure.core.matrix/matrix arrayspace.matrix-api/int-local-buffer-impl *d3d*))))

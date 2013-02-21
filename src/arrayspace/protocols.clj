@@ -51,7 +51,8 @@
    Counted protocols for low level access to their elements."
   (descriptor [this] 
     "Return the descriptor containing low-level storage and
-  layout information for this Distribution"))
+  layout information for this Distribution")
+  (copy [this] "Returns a copy of this distribution"))
 
 
 ;; XXX--clashes with matrix-api

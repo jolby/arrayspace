@@ -8,6 +8,8 @@
   (:import (java.nio ByteBuffer CharBuffer ShortBuffer
                      IntBuffer LongBuffer FloatBuffer DoubleBuffer)))
 
+(declare make-buffer-distribution)
+
 (defmacro def-primitive-buffer-dist
   [buf-type element-type]
   (let [bufdist-name (str buf-type "Distribution")
@@ -24,10 +26,18 @@
        Distribution
        (descriptor [this#]
          {:type (type this#)
+          :element-type ~element-type
           :storage ~bufvar
           :size (.capacity ~bufvar)
           :start ~startvar
           :end ~endvar})
+       (copy [this#]
+         (let [newdist# (make-buffer-distribution
+                        ~element-type
+                        (.capacity ~bufvar)
+                        ~startvar ~endvar)]
+         (set-data-flat! newdist# (map #(.get ~bufvar (int %1)) (range ~startvar ~endvar)))
+         newdist#))
        LinearIndexedAccess
        (get-flat [this# idx#]
          (.get ~bufvar (int idx#)))
@@ -43,8 +53,8 @@
 (def-primitive-buffer-dist FloatBuffer Float/TYPE)
 (def-primitive-buffer-dist DoubleBuffer Double/TYPE)
 
-(defn cast-buffer-type [buf type]
-  (case (.getName type)
+(defn cast-buffer-type [buf element-type]
+  (case (.getName element-type)
     "byte" buf
     "char" (.asCharBuffer buf)
     "short" (.asShortBuffer buf)
@@ -53,29 +63,30 @@
     "float" (.asFloatBuffer buf)
     "double" (.asDoubleBuffer buf)))
 
-(defn distribution-for-type [buf type start end]
-  {:pre [(not-any? nil? '(buf type start end))]}
-  (case (.getName type)
+(defn distribution-for-type [buf element-type start end]
+  {:pre [(not-any? nil? '(buf element-type start end))]}
+  (case (.getName element-type)
     "byte" (ByteBufferDistribution. buf start end)
-    "char" (CharBufferDistribution. (cast-buffer-type buf type) start end)
-    "short" (ShortBufferDistribution. (cast-buffer-type buf type) start end)
-    "int" (IntBufferDistribution. (cast-buffer-type buf type) start end)
-    "long" (LongBufferDistribution. (cast-buffer-type buf type) start end)
-    "float" (FloatBufferDistribution. (cast-buffer-type buf type) start end)
-    "double" (DoubleBufferDistribution. (cast-buffer-type buf type) start end)
-    (throw (Exception. (str "Don't know how to build distribution for type: " type "named: "(.getName type))))))
+    "char" (CharBufferDistribution. (cast-buffer-type buf element-type) start end)
+    "short" (ShortBufferDistribution. (cast-buffer-type buf element-type) start end)
+    "int" (IntBufferDistribution. (cast-buffer-type buf element-type) start end)
+    "long" (LongBufferDistribution. (cast-buffer-type buf element-type) start end)
+    "float" (FloatBufferDistribution. (cast-buffer-type buf element-type) start end)
+    "double" (DoubleBufferDistribution. (cast-buffer-type buf element-type) start end)
+    (throw (Exception. (str "Don't know how to build distribution for element-type: "
+                            element-type "named: "(.getName element-type))))))
 
 (defn make-buffer-distribution
-  [type element-count start end]
-  (let [type (resolve-type type)
-        buf (ByteBuffer/allocate (required-storage-size type element-count))]
-    (distribution-for-type buf type start end)))
+  [element-type element-count start end]
+  (let [element-type (resolve-type element-type)
+        buf (ByteBuffer/allocate (required-storage-size element-type element-count))]
+    (distribution-for-type buf element-type start end)))
 
 (defmethod make-distribution :local-byte-buffer
-  [type-kw & {:keys [element-count type start end data]
+  [type-kw & {:keys [element-count element-type start end data]
               :or {start 0}}]
   {:pre [(not (nil? element-count))]}
-  (let [dist (make-buffer-distribution type element-count start
+  (let [dist (make-buffer-distribution element-type element-count start
                                        (or end (dec element-count)))]
     (when  data (set-data-flat! dist data))
     dist))
