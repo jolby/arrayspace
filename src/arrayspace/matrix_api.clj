@@ -21,6 +21,16 @@
   ;;(throw (Exception. "TODO- NOT IMPLEMENTED YET"))
   nil)
 
+(defn debug-compare [m o]
+  (let [oa (array? o)
+        shape-eq (every? true? (map == (get-shape m) (get-shape o)))
+        el-eq (every? true? (map == (element-seq m) (element-seq o)))]
+    (println (format "EQ: FALSE: %s %s" m o))
+    (println (format "o: array? %s, shape-eq: %s el-eq: %s" oa shape-eq el-eq))
+    (println (format "m-shape: %s, o-shape: %s" (vec (get-shape m)) (vec (get-shape o))))
+    (println (format "m-seq: %s, o-seq: %s" (vec (element-seq m)) (vec (element-seq o))))))
+
+
 (deftype ArrayspaceMatrixSeq
     [array ^Long idx]
 
@@ -73,19 +83,10 @@
 
   Object
   (equals [m o]
-    (if (and (array? o)
-             (every? true? (map == (get-shape m) (get-shape o)))
-             (every? true? (map == (element-seq m) (element-seq o))))
-      true
-      (do
-        (let [oa (array? o)
-              shape-eq (every? true? (map == (get-shape m) (get-shape o)))
-              el-eq (every? true? (map == (element-seq m) (element-seq o)))]
-          (println (format "EQ: FALSE: %s %s" m o))
-          (println (format "o: array? %s, shape-eq: %s el-eq: %s" oa shape-eq el-eq))
-          (println (format "m-shape: %s, o-shape: %s" (vec (get-shape m)) (vec (get-shape o))))
-          (println (format "m-seq: %s, o-seq: %s" (vec (element-seq m)) (vec (element-seq o)))))
-        false)))
+    ;;(debug-compare m o)
+    (and (array? o)
+         (every? true? (map == (get-shape m) (get-shape o)))
+         (every? true? (map == (element-seq m) (element-seq o)))))
 
   (hashCode [m]
     (let [coll (element-seq m)]
