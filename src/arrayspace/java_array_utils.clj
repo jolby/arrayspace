@@ -35,7 +35,7 @@
 
 (defn a==
   "Test if elements at index are equal"
-  [idx a b]
+  [a b idx]
   (== (aget a idx) (aget b idx)))
 
 (defn ainc-long

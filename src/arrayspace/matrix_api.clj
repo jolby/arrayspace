@@ -92,7 +92,7 @@
   ([m ^longs coords bottom-ranges top-ranges rank ridx last-dim]
      (let [el (.get-nd m coords)
            inc-last-coords (fn inc-last-coords [] (ainc-long coords last-dim))
-           idx-at-max? (fn idx-at-max? [idx] (a== idx coords top-ranges))
+           idx-at-max? (fn idx-at-max? [idx] (a== coords top-ranges idx))
            all-dims-at-max? (fn all-dims-at-max? [] (every? true? (map #(== %1 (dec %2)) coords top-ranges)))
            roll-idx (fn roll-idx [idx] (acopy coords bottom-ranges idx))
            carry-idx (fn carry-idx [idx] (ainc-long coords idx))
