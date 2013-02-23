@@ -33,6 +33,11 @@
      (aloop [~loop-index 0 n#]
        (aset array# ~loop-index ~expr))))
 
+(defn a==
+  "Test if elements at index are equal"
+  [idx a b]
+  (== (aget a idx) (aget b idx)))
+
 (defn ainc-long
   "increment the element at idx"
   {:tag long
@@ -50,3 +55,11 @@
    :inline (fn [arr idx] `(aset ~arr ~idx (unchecked-dec (aget ~arr ~idx))))}
   [^longs arr ^long idx]
   (aset arr idx (unchecked-dec (aget arr idx))))
+
+(defn acopy
+  "Copy elements from b into a at provided indicies.
+When given a range, the indices are inclusive. Return a."
+  ([a b idx]
+     (aset a idx (aget b idx)) a)
+  ([a b start end]
+     (System/arraycopy b start a start (- (inc end) start)) a))

@@ -5,7 +5,7 @@
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
    [arrayspace.domain :refer [strides-of-shape element-count-of-shape
                               flatten-coords do-elements-loop]]
-   [arrayspace.java-array-utils :refer [adel ainc-long]]
+   [arrayspace.java-array-utils :refer [adel a== acopy ainc-long]]
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
    [arrayspace.distributions.partitioned-buffer]
@@ -80,57 +80,36 @@
 
 (defn lazy-eseq
   ([m] (lazy-eseq m (long-array (:bottom-ranges (.domain m)))))
-  ([m coords]
+  ([m ^longs coords]
      (let [domain (.domain m)
-           bottom-ranges (:bottom-ranges domain)
-           top-ranges (:top-ranges domain)
+           bottom-ranges (longs (:bottom-ranges domain))
+           top-ranges (longs (:top-ranges domain))
            shape (long-array (arrayspace.domain/shape-from-ranges bottom-ranges top-ranges))
-           rank (count shape)
+           rank (long (count shape))
            ridx (long-array (reverse (range rank)))
-           last-dim (aget ridx 0)]
-       (println (format "coords: %s, BR: %s, TR: %s, shape: %s, rank: %s, ridx: %s, last-dim: %s" (vec coords) (vec bottom-ranges) (vec top-ranges) (vec shape) rank (vec ridx) last-dim))
+           last-dim (long (aget ridx 0))]
        (lazy-eseq m coords bottom-ranges top-ranges rank ridx last-dim)))
-  ([m coords bottom-ranges top-ranges rank ridx last-dim]
-     (let [el (vec coords) ;;(.get-nd m coords)
-           dbg (fn dbg [tag dim idx]
-                 (println (format "%s(%s) %s coords: %s" tag dim idx (vec coords))))
-           inc-last-coords (fn inc-last-coords [] (ainc coords last-dim))
-           idx-at-max? (fn idx-at-max? [idx] (= (aget coords idx)
-                                                     (aget top-ranges idx)))
-           all-dims-at-max? (fn all-dims-at-max? [] (every? #(= (aget coords (int (aget ridx %)))
-                                                                (dec (aget top-ranges (aget ridx %)))) (range rank)))
-           roll-idx (fn roll-idx [idx] (aset coords idx (aget bottom-ranges idx)))
+  ([m ^longs coords bottom-ranges top-ranges rank ridx last-dim]
+     (let [el (.get-nd m coords)
+           inc-last-coords (fn inc-last-coords [] (ainc-long coords last-dim))
+           idx-at-max? (fn idx-at-max? [idx] (a== idx coords top-ranges))
+           all-dims-at-max? (fn all-dims-at-max? [] (every? true? (map #(== %1 (dec %2)) coords top-ranges)))
+           roll-idx (fn roll-idx [idx] (acopy coords bottom-ranges idx))
            carry-idx (fn carry-idx [idx] (ainc-long coords idx))
-
            inc-coords (fn inc-coords []
                         (inc-last-coords)
-                        ;;(doseq [dim ridx]
                         (dotimes [i rank]
-                          (let [dim (aget ridx i)
-                                idx i
-                                ;;idx (aget ridx dim)
-                                ]
-                            ;;(dbg "NEWDIM: " dim idx)
-                            ;;(println (format "idx-at-max? (dim) %s" (idx-at-max? dim)))
-                            ;;(println (format "idx-at-max? (idx) %s" (idx-at-max? idx)))
+                          (let [dim (aget ridx i)]
                             (when (idx-at-max? dim)
-                              ;;(println (format "Roll: coords: %s dim: %s" (vec coords) dim))
                               (roll-idx dim)
-                              ;;(dbg "ROLL-DIM: " dim idx)
-
                               (when-not (zero? dim)
-                                ;;(dbg "***********CARRY-DIM: " dim idx)
-                                ;;(println (format "coords: %s Carrying +1 to coord idx: %s" (vec coords) (dec dim)))
-                                ;;(println (format "coords: %s Carrying +1 to coord idx: %s" (vec coords) (inc (aget ridx dim))))
-                                ;;(carry-idx (dec idx));;(aget ridx (inc dim))) ;;(aget ridx (dec idx)))
-                                (carry-idx (dec dim))
-                                ;;(dbg "CARRY-DIM: " dim idx)
-                                )
-                              )))
+                                (carry-idx (dec dim))))))
                         coords)]
              (cons el (if (all-dims-at-max?)
                         nil
-                        (lazy-seq (lazy-eseq m (inc-coords) bottom-ranges top-ranges rank ridx last-dim)))))))
+                        (lazy-seq (lazy-eseq m (inc-coords)
+                                             bottom-ranges top-ranges
+                                             rank ridx last-dim)))))))
 
 (deftype ArrayspaceMatrix
     [implementation-key multi-array-key domain domain-map distribution element-type]
