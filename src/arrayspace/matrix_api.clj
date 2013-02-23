@@ -5,7 +5,7 @@
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
    [arrayspace.domain :refer [strides-of-shape element-count-of-shape
                               flatten-coords do-elements-loop]]
-   [arrayspace.java-array-utils :refer [adel]]
+   [arrayspace.java-array-utils :refer [adel ainc-long]]
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
    [arrayspace.distributions.partitioned-buffer]
@@ -77,6 +77,60 @@
   clojure.lang.Counted
   (count [this]
     (int (- (count array) idx))))
+
+(defn lazy-eseq
+  ([m] (lazy-eseq m (long-array (:bottom-ranges (.domain m)))))
+  ([m coords]
+     (let [domain (.domain m)
+           bottom-ranges (:bottom-ranges domain)
+           top-ranges (:top-ranges domain)
+           shape (long-array (arrayspace.domain/shape-from-ranges bottom-ranges top-ranges))
+           rank (count shape)
+           ridx (long-array (reverse (range rank)))
+           last-dim (aget ridx 0)]
+       (println (format "coords: %s, BR: %s, TR: %s, shape: %s, rank: %s, ridx: %s, last-dim: %s" (vec coords) (vec bottom-ranges) (vec top-ranges) (vec shape) rank (vec ridx) last-dim))
+       (lazy-eseq m coords bottom-ranges top-ranges rank ridx last-dim)))
+  ([m coords bottom-ranges top-ranges rank ridx last-dim]
+     (let [el (vec coords) ;;(.get-nd m coords)
+           dbg (fn dbg [tag dim idx]
+                 (println (format "%s(%s) %s coords: %s" tag dim idx (vec coords))))
+           inc-last-coords (fn inc-last-coords [] (ainc coords last-dim))
+           idx-at-max? (fn idx-at-max? [idx] (= (aget coords idx)
+                                                     (aget top-ranges idx)))
+           all-dims-at-max? (fn all-dims-at-max? [] (every? #(= (aget coords (int (aget ridx %)))
+                                                                (dec (aget top-ranges (aget ridx %)))) (range rank)))
+           roll-idx (fn roll-idx [idx] (aset coords idx (aget bottom-ranges idx)))
+           carry-idx (fn carry-idx [idx] (ainc-long coords idx))
+
+           inc-coords (fn inc-coords []
+                        (inc-last-coords)
+                        ;;(doseq [dim ridx]
+                        (dotimes [i rank]
+                          (let [dim (aget ridx i)
+                                idx i
+                                ;;idx (aget ridx dim)
+                                ]
+                            ;;(dbg "NEWDIM: " dim idx)
+                            ;;(println (format "idx-at-max? (dim) %s" (idx-at-max? dim)))
+                            ;;(println (format "idx-at-max? (idx) %s" (idx-at-max? idx)))
+                            (when (idx-at-max? dim)
+                              ;;(println (format "Roll: coords: %s dim: %s" (vec coords) dim))
+                              (roll-idx dim)
+                              ;;(dbg "ROLL-DIM: " dim idx)
+
+                              (when-not (zero? dim)
+                                ;;(dbg "***********CARRY-DIM: " dim idx)
+                                ;;(println (format "coords: %s Carrying +1 to coord idx: %s" (vec coords) (dec dim)))
+                                ;;(println (format "coords: %s Carrying +1 to coord idx: %s" (vec coords) (inc (aget ridx dim))))
+                                ;;(carry-idx (dec idx));;(aget ridx (inc dim))) ;;(aget ridx (dec idx)))
+                                (carry-idx (dec dim))
+                                ;;(dbg "CARRY-DIM: " dim idx)
+                                )
+                              )))
+                        coords)]
+             (cons el (if (all-dims-at-max?)
+                        nil
+                        (lazy-seq (lazy-eseq m (inc-coords) bottom-ranges top-ranges rank ridx last-dim)))))))
 
 (deftype ArrayspaceMatrix
     [implementation-key multi-array-key domain domain-map distribution element-type]
@@ -279,6 +333,7 @@
     (try
       (let [eseq (element-seq m)
             s (shape m)]
+        ;;if no shape (scalar value) wrap in vec
         (if-not (count s) (vec eseq)
                 (loop [countdown (count s) revshapes (reverse s) accum eseq]
                   (if (zero? countdown) (first accum)
@@ -347,7 +402,7 @@
     ([m f a]
        (do-elements! m #(f % a)))
     ([m f a more]
-       (TODO)))
+       (do-elements! m #(apply f % a more))))
 
   (element-reduce
     ([m f]
@@ -367,7 +422,7 @@
 
 (defn- print-arrayspace-matrix
   [m #^java.io.Writer w]
-  (.write w "#:ArrayspaceMatrix")
+  (.write w "#ArrayspaceMatrix")
   (.write w "{:domain ")
   (print-method (.domain m) w)
   (.write w ", :domain-map ")
@@ -471,3 +526,5 @@
 (imp/register-implementation int-local-1d-java-array-impl)
 (imp/register-implementation int-local-buffer-impl)
 (imp/register-implementation int-partitioned-buffer-impl)
+
+nil

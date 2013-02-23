@@ -32,3 +32,21 @@
          n# (int (alength array#))]
      (aloop [~loop-index 0 n#]
        (aset array# ~loop-index ~expr))))
+
+(defn ainc-long
+  "increment the element at idx"
+  {:tag long
+   :static true
+   :inline-arities #{2}
+   :inline (fn [arr idx] `(aset ~arr ~idx (unchecked-inc (aget ~arr ~idx))))}
+  [^longs arr ^long idx]
+  (aset arr idx (unchecked-inc (aget arr idx))))
+
+(defn adec-long
+  "increment the element at idx"
+  {:tag long
+   :static true
+   :inline-arities #{2}
+   :inline (fn [arr idx] `(aset ~arr ~idx (unchecked-dec (aget ~arr ~idx))))}
+  [^longs arr ^long idx]
+  (aset arr idx (unchecked-dec (aget arr idx))))

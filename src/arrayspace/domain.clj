@@ -60,9 +60,9 @@
       `(let [~domain (.domain ~m)
              ~bottom-ranges (:bottom-ranges ~domain)
              ~top-ranges (:top-ranges ~domain)
-             ~shape (long-array (arrayspace.domain/shape-from-ranges ~bottom-ranges ~top-ranges))
+             ~shape (long-array (shape-from-ranges ~bottom-ranges ~top-ranges))
              ~rank (count ~shape)
-             ~elcount (arrayspace.domain/element-count-of-shape ~shape)
+             ~elcount (element-count-of-shape ~shape)
              ~coords (long-array ~bottom-ranges)
              ~ridx (long-array (reverse (range ~rank)))
              ~last-dim (aget ~ridx 0)]
