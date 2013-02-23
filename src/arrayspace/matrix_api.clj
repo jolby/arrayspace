@@ -30,54 +30,6 @@
     (println (format "m-shape: %s, o-shape: %s" (vec (get-shape m)) (vec (get-shape o))))
     (println (format "m-seq: %s, o-seq: %s" (vec (element-seq m)) (vec (element-seq o))))))
 
-
-(deftype ArrayspaceMatrixSeq
-    [array ^Long idx]
-
-  clojure.lang.IPersistentCollection
-  (empty [this] ())
-  (cons [this o] (clojure.lang.Cons o this))
-  (equiv [this o] (.equals array o))
-
-  java.util.Collection
-  (contains [this o] (boolean (some #(= % o) this)))
-  (containsAll [this c] (every? #(.contains this %) c))
-  (isEmpty [_] (zero? (int (- (count array) idx))))
-  (toArray [this] (into-array Object this))
-  (toArray [this arr]
-    (if (>= (count arr) (int (- (count array) idx)))
-      (do
-        (dotimes [i (int (- (count array) idx))]
-          (aset arr i (.nth array i)))
-        arr)
-      (into-array Object this)))
-  (size [_] (int (- (count array) idx)))
-  (add [_ o] (throw (UnsupportedOperationException.)))
-  (addAll [_ c] (throw (UnsupportedOperationException.)))
-  (clear [_] (throw (UnsupportedOperationException.)))
-  (^boolean remove [_ o] (throw (UnsupportedOperationException.)))
-  (removeAll [_ c] (throw (UnsupportedOperationException.)))
-  (retainAll [_ c] (throw (UnsupportedOperationException.)))
-
-
-  clojure.lang.Sequential
-  clojure.lang.Seqable
-  (seq [this] this)
-
-  clojure.lang.ISeq
-  (first [this] (.get-slice array 0 idx))
-  (next [this] (if (>= idx (.count array)) nil
-                   (ArrayspaceMatrixSeq. array (inc idx))))
-  (more [this] (if (>= idx (.count array)) ()
-                   (ArrayspaceMatrixSeq. array (inc idx))))
-
-  clojure.lang.IndexedSeq
-  (index [this] idx)
-
-  clojure.lang.Counted
-  (count [this]
-    (int (- (count array) idx))))
-
 (defn lazy-eseq
   ([m] (lazy-eseq m (long-array (:bottom-ranges (.domain m)))))
   ([m ^longs coords]
@@ -91,21 +43,15 @@
        (lazy-eseq m coords bottom-ranges top-ranges rank ridx last-dim)))
   ([m ^longs coords bottom-ranges top-ranges rank ridx last-dim]
      (let [el (.get-nd m coords)
-           inc-last-coords (fn inc-last-coords [] (ainc-long coords last-dim))
-           idx-at-max? (fn idx-at-max? [idx] (a== coords top-ranges idx))
-           all-dims-at-max? (fn all-dims-at-max? [] (every? true? (map #(== %1 (dec %2)) coords top-ranges)))
-           roll-idx (fn roll-idx [idx] (acopy coords bottom-ranges idx))
-           carry-idx (fn carry-idx [idx] (ainc-long coords idx))
            inc-coords (fn inc-coords []
-                        (inc-last-coords)
+                        (ainc-long coords last-dim)
                         (dotimes [i rank]
                           (let [dim (aget ridx i)]
-                            (when (idx-at-max? dim)
-                              (roll-idx dim)
+                            (when (a== coords top-ranges dim)
+                              (acopy coords bottom-ranges dim)
                               (when-not (zero? dim)
-                                (carry-idx (dec dim))))))
-                        coords)]
-             (cons el (if (all-dims-at-max?)
+                                (ainc-long coords (dec dim)))))) coords)]
+             (cons el (if (every? true? (map #(== %1 (dec %2)) coords top-ranges))
                         nil
                         (lazy-seq (lazy-eseq m (inc-coords)
                                              bottom-ranges top-ranges
@@ -358,13 +304,7 @@
 ;; but it barfs with an 'Unsupported Binding Form' error on the variadic method impls
 (extend-protocol PFunctionalOperations
   ArrayspaceMatrix
-  (element-seq [m]
-    ;;XXX-- this is horrible performance-wise, but just trying to get it
-    ;;Will create true Arrayspace ISeq/Iterator impls later
-    (let [arr (make-array (.element-type m)
-                          (element-count-of-shape (shape (.domain m))))]
-      (do-elements-indexed m (fn [idx el] (aset arr idx el)))
-      (seq arr)))
+  (element-seq [m] (lazy-eseq m))
 
   (element-map
     ([m f]
