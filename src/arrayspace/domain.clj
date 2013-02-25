@@ -15,7 +15,7 @@
 (defn check-valid-coords [coords shape]
   (when-not (valid-coords? coords shape)
     (throw (Exception. (str "Coordinates " (vec coords)
-			    " not valid for shape: " (vec shape))))))
+                            " not valid for shape: " (vec shape))))))
 
 (defn normalize-shape [shape]
   (long-array (map #(if (vector? %) (- (nth % 1) (nth % 0)) %) shape)))

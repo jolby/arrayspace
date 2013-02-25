@@ -7,4 +7,4 @@ Heavily influenced by Chapele language and the python Blaze projects"
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/tools.namespace "0.2.2"]
                  [org.clojure/tools.macro "0.1.1"]
-                 [net.mikera/core.matrix "0.2.0-SNAPSHOT"]])
+                 [net.mikera/core.matrix "0.3.0"]])

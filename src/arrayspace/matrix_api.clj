@@ -4,7 +4,7 @@
    [arrayspace.protocols :refer :all]
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
    [arrayspace.domain :refer [strides-of-shape element-count-of-shape
-                              flatten-coords do-elements-loop]]
+                              flatten-coords do-elements-loop shape-from-ranges]]
    [arrayspace.java-array-utils :refer [adel a== acopy ainc-long]]
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
@@ -36,7 +36,7 @@
      (let [domain (.domain m)
            bottom-ranges (longs (:bottom-ranges domain))
            top-ranges (longs (:top-ranges domain))
-           shape (long-array (arrayspace.domain/shape-from-ranges bottom-ranges top-ranges))
+           shape (long-array (shape-from-ranges bottom-ranges top-ranges))
            rank (long (count shape))
            ridx (long-array (reverse (range rank)))
            last-dim (long (aget ridx 0))]
@@ -108,8 +108,9 @@
   clojure.lang.Sequential
   clojure.lang.Seqable
   (seq [m]
-    (ArrayspaceMatrixSeq. m 0))
-    ;;(map (fn [idx] (get-slice m 0 idx)) (range (first (shape m)))))
+    (map (fn [idx] (get-slice m 0 idx)) (range (first (shape m))))
+    ;;(ArrayspaceMatrixSeq. m 0)
+    )
 
   Domain
   (shape [m] (vec (shape domain)))
@@ -446,4 +447,5 @@
 (imp/register-implementation int-local-buffer-impl)
 (imp/register-implementation int-partitioned-buffer-impl)
 
-nil
+(comment
+  "Add scratchpad/REPL forms here")
