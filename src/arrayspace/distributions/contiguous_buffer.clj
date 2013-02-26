@@ -17,10 +17,11 @@
         bufvar (with-meta (symbol "buf") {:tag buf-type})
         startvar (with-meta (symbol "start") {:tag Long/TYPE})
         endvar (with-meta (symbol "end") {:tag Long/TYPE})
-        coercion-fn (or (resolve-type-coercion-fn element-type)
-                        (do (println (format "element-type: %s resolved-type: %s rtt: %s type: %s" element-type (resolve-type element-type) (type (resolve-type element-type)) (type element-type)))
-                            ;;(println (format "types: %s" @*types*))
-                        (throw (Exception. (str "Unable to resolve coercion fn for: " element-type)))))]
+        ;; coercion-fn (or (resolve-type-coercion-fn element-type)
+        ;;                 (do (println (format "element-type: %s resolved-type: %s rtt: %s type: %s" element-type (resolve-type element-type) (type (resolve-type element-type)) (type element-type)))
+        ;;                     ;;(println (format "types: %s" @*types*))
+        ;;                 (throw (Exception. (str "Unable to resolve coercion fn for: " element-type)))))
+        coercion-fn (resolve-type-coercion-fn element-type)]
     `(defrecord ~bufdist-sym
          [~bufvar ~startvar ~endvar]
        Distribution
@@ -36,7 +37,7 @@
                         ~element-type
                         (.capacity ~bufvar)
                         ~startvar ~endvar)]
-         (set-data-flat! newdist# (map #(.get ~bufvar (int %1)) (range ~startvar ~endvar)))
+           (set-data-flat! newdist# (map #(.get ~bufvar (int %1)) (range ~startvar (inc ~endvar))))
          newdist#))
        LinearIndexedAccess
        (get-flat [this# idx#]

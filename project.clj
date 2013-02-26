@@ -1,5 +1,5 @@
 (defproject arrayspace "0.1.0-SNAPSHOT"
-  :description "N Dimensional array abstractions. 
+  :description "N Dimensional array abstractions.
 Heavily influenced by Chapele language and the python Blaze projects"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
