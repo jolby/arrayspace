@@ -64,7 +64,12 @@
    (nil? (next arglist)) (seq (first arglist))
    :else (cons (first arglist) (spread (next arglist)))))
 
+(defn ensure-seq [o max] 
+  (if (scalar? o) (repeat max o) o))
 
+(defn ensure-seqs [objs max] 
+  (map #(ensure-seq % max) objs))
+             
 (defn zmap!
   "Element-wise map over all elements of one or more arrays.
    Performs in-place modification of the first array argument."
@@ -73,30 +78,23 @@
   ([f m a]
     (element-map! m f (if (scalar? a) (repeat a) a) a))
   ([f m a & more]
-     (element-map! m f a more
-                   ;;(if (scalar? a) (repeat a) a)
-                   ;;(map #(if (scalar? %) (repeat %) %) more)
-    )))
+     (element-map! m f a more)))
 
 
 (defn wrap-ctx-fn!
   ([f]
      (fn ctx-fn [[m coords el]]
        (let [new-el (f el)]
-         (println (format "coords: %s, new-el: %s" (vec coords) new-el))
          (.set-nd! m coords new-el)
          new-el)))
   ([f a]
      (fn ctx-fn-a [[m coords el] a]
        (let [new-el (f el a)]
-         (println (format "A: %s coords: %s, new-el: %s" a (vec coords) new-el))
          (.set-nd! m coords new-el)
          new-el)))
   ([f a more]
      (fn ctx-fn-a-more [[m coords el] a more]
-       (println "------------f a & more...")
        (let [new-el (apply f el a more)]
-         (println (format "A: %s , more: %s coords: %s, new-el: %s" a (first more) (vec coords) new-el))
          (.set-nd! m coords new-el)
          new-el))))
 
@@ -441,23 +439,20 @@ for each element"
   (element-map!
     ;;Apply fn to all elements in m, setting that element to the result in-place
     ([m f]
-       (println "EM!")
        (map (wrap-ctx-fn! f) (lazy-ctx-seq m)))
     ([m f a]
-       (println "EM!")
        (map (wrap-ctx-fn! f a) (lazy-ctx-seq m) (if (scalar? a) (repeat a) a)))
     ([m f a more]
-       ;;(println "EM-MORE!")
-       ;;(println (format "m: %s, f: %s, a: %s, more: %s" m f a more))
-       ;;(apply lazy-ctx-seq (wrap-ctx-fn! f a more) m (if (scalar? a) (repeat a) a) more)
-       (let [ensure-seq (fn ensure-seq [o max] (if (scalar? o) (repeat max o) o))
-             ensure-seqs (fn ensure-seqs [objs max] (map #(ensure-seq % max) objs))
-             max (ecount m)]
-         (println (format "a: %s" (ensure-seq a max)))
-         (println (format "more: %s, first: %s" (ensure-seqs more max) (ffirst (ensure-seqs more max))))
-         ;;(map (wrap-ctx-fn! f a more) (lazy-ctx-seq m) (ensure-seq a max) (ensure-seqs more max))
-         (apply map (wrap-ctx-fn! f a more) (cons (lazy-ctx-seq m) (cons (ensure-seq a max) (spread (ensure-seqs more max)))))
-         )))
+       (let [max (ecount m)
+             msq (lazy-ctx-seq m)
+             em-f (wrap-ctx-fn! f a more)
+             em-a1 (ensure-seq a max)
+             em-arest (ensure-seqs more max)
+             mfn (fn mfn [idx ef msq a1 arest]
+                   (if (= idx 0) nil                      
+                       (cons (ef (first msq) (first a1) (vec (map first arest)))
+                             (lazy-seq (mfn (dec idx) ef (rest msq) (rest a1) (map rest arest))))))]
+         (mfn max em-f msq em-a1 em-arest))))
 
   (element-reduce
     ([m f]
