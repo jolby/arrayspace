@@ -2,9 +2,7 @@
   (:require
    [clojure.tools.macro :as macro]
    [arrayspace.protocols :refer [Domain DomainMap shape rank]]
-   [arrayspace.core :refer [make-domain make-domain-map]]
-   [arrayspace.types :refer [sym-typed sym-long sym-int
-                             gensym-typed gensym-long gensym-int]]))
+   [arrayspace.core :refer [make-domain make-domain-map]]))
 
 
 (defn valid-coords? [coords shape]
@@ -34,53 +32,6 @@
 
 (defn top-ranges-from-shape [shape]
   (long-array (map #(if (vector? %) (nth % 1) %) shape)))
-
-(defmacro do-elements-loop
-  [[m coords idx el as ar] & body]
-  (let [coords (sym-typed coords longs)
-        idx (sym-long idx)
-        domain (gensym 'domain)
-        bottom-ranges (gensym-typed 'bottom-ranges longs)
-        top-ranges (gensym-typed 'top-ranges longs)
-        shape (gensym-typed 'shape longs)
-        rank (gensym-long 'rank)
-        elcount (gensym-long 'elcount)
-        last-dim (gensym-int 'last-dim)
-        ridx (gensym-typed 'ridx longs)
-        dim (gensym-long 'dim)
-        argseq (gensym 'argseq)
-        args (gensym 'args)
-        ]
-    (letfn [(inc-last-coords []
-              `(aset ~coords ~last-dim
-                     (unchecked-inc (aget ~coords ~last-dim))))
-            (dim-at-max? [] `(= (aget ~coords (int (aget ~ridx ~dim)))
-                                (aget ~top-ranges (aget ~ridx ~dim))))
-            (roll-idx []  `(aset ~coords (aget ~ridx ~dim) (aget ~bottom-ranges (aget ~ridx ~dim))))
-            (carry-idx [] `(aset ~coords (aget ~ridx (unchecked-inc ~dim))
-                                 (unchecked-inc (aget ~coords (int (aget ~ridx (unchecked-inc ~dim)))))))
-            (top-dim? [] `(zero? (aget ~ridx ~dim)))]
-      `(let [~domain (.domain ~m)
-             ~bottom-ranges (:bottom-ranges ~domain)
-             ~top-ranges (:top-ranges ~domain)
-             ~shape (long-array (shape-from-ranges ~bottom-ranges ~top-ranges))
-             ~rank (count ~shape)
-             ~elcount (element-count-of-shape ~shape)
-             ~coords (long-array ~bottom-ranges)
-             ~ridx (long-array (reverse (range ~rank)))
-             ~last-dim (aget ~ridx 0)]
-         (loop [~idx 0 ~argseq ~as]
-           (if (== ~idx ~elcount) nil
-               (let [~el (.get-nd ~m ~coords)
-                     ~ar (when ~argseq (vec (map first ~argseq)))]
-                 ;;(println (format "idx: %s elcount: %s, ~argseq: %s, args: %s" ~idx ~elcount ~argseq ~ar))
-                 ~@body
-                 ;;(try ~@body (catch Exception ex# (do (clojure.stacktrace/print-stack-trace ex#) (throw ex#))))
-                 ~(inc-last-coords)
-                 (dotimes [~dim ~rank]
-                   (when ~(dim-at-max?)
-                     ~(roll-idx) (when-not ~(top-dim?) ~(carry-idx))))
-                 (recur (inc ~idx) (if ~argseq (vec (map rest ~argseq)) nil)))))))))
 
 (defn flatten-coords [coords shape offset]
   "Flatten the coordinates in a multidimensional space to 1d"

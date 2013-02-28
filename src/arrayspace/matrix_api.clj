@@ -3,19 +3,20 @@
    [clojure.tools.macro :as macro]
    [arrayspace.protocols :refer :all]
    [arrayspace.core :refer [make-domain make-domain-map make-distribution]]
-   [arrayspace.domain :refer [strides-of-shape element-count-of-shape
-                              flatten-coords do-elements-loop shape-from-ranges]]
+   [arrayspace.domain :refer [strides-of-shape element-count-of-shape shape-from-ranges
+                              flatten-coords shape-from-ranges]]
    [arrayspace.java-array-utils :refer [adel a== acopy ainc-long]]
    [arrayspace.distributions.contiguous-java-array]
    [arrayspace.distributions.contiguous-buffer]
    [arrayspace.distributions.partitioned-buffer]
-   [arrayspace.types :refer [resolve-type resolve-type-from-data]]
+   [arrayspace.types :refer [resolve-type resolve-type-from-data sym-typed sym-long sym-int
+                             gensym-typed gensym-long gensym-int]]
    [clojure.core.matrix.protocols :refer :all]
    [clojure.core.matrix :refer [scalar? array? ecount]]
    [clojure.core.matrix.implementations :as imp]
    [clojure.core.matrix.impl.persistent-vector]))
 
-(declare maybe-coerce-data make-arrayspace-matrix do-elements do-elements-indexed do-elements!)
+(declare make-arrayspace-matrix do-elements do-elements-indexed do-elements!)
 
 (defn TODO []
   ;;(throw (Exception. "TODO- NOT IMPLEMENTED YET"))
@@ -29,6 +30,53 @@
     (println (format "o: array? %s, shape-eq: %s el-eq: %s" oa shape-eq el-eq))
     (println (format "m-shape: %s, o-shape: %s" (vec (get-shape m)) (vec (get-shape o))))
     (println (format "m-seq: %s, o-seq: %s" (vec (element-seq m)) (vec (element-seq o))))))
+
+(defmacro do-elements-loop
+  [[m coords idx el as ar] & body]
+  (let [coords (sym-typed coords longs)
+        idx (sym-long idx)
+        domain (gensym 'domain)
+        bottom-ranges (gensym-typed 'bottom-ranges longs)
+        top-ranges (gensym-typed 'top-ranges longs)
+        shape (gensym-typed 'shape longs)
+        rank (gensym-long 'rank)
+        elcount (gensym-long 'elcount)
+        last-dim (gensym-int 'last-dim)
+        ridx (gensym-typed 'ridx longs)
+        dim (gensym-long 'dim)
+        argseq (gensym 'argseq)
+        args (gensym 'args)
+        ]
+    (letfn [(inc-last-coords []
+              `(aset ~coords ~last-dim
+                     (unchecked-inc (aget ~coords ~last-dim))))
+            (dim-at-max? [] `(= (aget ~coords (int (aget ~ridx ~dim)))
+                                (aget ~top-ranges (aget ~ridx ~dim))))
+            (roll-idx []  `(aset ~coords (aget ~ridx ~dim) (aget ~bottom-ranges (aget ~ridx ~dim))))
+            (carry-idx [] `(aset ~coords (aget ~ridx (unchecked-inc ~dim))
+                                 (unchecked-inc (aget ~coords (int (aget ~ridx (unchecked-inc ~dim)))))))
+            (top-dim? [] `(zero? (aget ~ridx ~dim)))]
+      `(let [~domain (.domain ~m)
+             ~bottom-ranges (:bottom-ranges ~domain)
+             ~top-ranges (:top-ranges ~domain)
+             ~shape (long-array (shape-from-ranges ~bottom-ranges ~top-ranges))
+             ~rank (count ~shape)
+             ~elcount (element-count-of-shape ~shape)
+             ~coords (long-array ~bottom-ranges)
+             ~ridx (long-array (reverse (range ~rank)))
+             ~last-dim (aget ~ridx 0)]
+         (loop [~idx 0 ~argseq ~as]
+           (if (== ~idx ~elcount) nil
+               (let [~el (.get-nd ~m ~coords)
+                     ~ar (when ~argseq (vec (map first ~argseq)))]
+                 ;;(println (format "idx: %s elcount: %s, ~argseq: %s, args: %s" ~idx ~elcount ~argseq ~ar))
+                 ~@body
+                 ;;(try ~@body (catch Exception ex# (do (clojure.stacktrace/print-stack-trace ex#) (throw ex#))))
+                 ~(inc-last-coords)
+                 (dotimes [~dim ~rank]
+                   (when ~(dim-at-max?)
+                     ~(roll-idx) (when-not ~(top-dim?) ~(carry-idx))))
+                 (recur (inc ~idx) (if ~argseq (vec (map rest ~argseq)) nil)))))))))
 
 (defn lazy-eseq
   ([m] (lazy-eseq m (long-array (:bottom-ranges (.domain m)))))
@@ -56,79 +104,11 @@
                         (lazy-seq (lazy-eseq m (inc-coords)
                                              bottom-ranges top-ranges
                                              rank ridx last-dim)))))))
-
-(defn spread
-  [arglist]
-  (cond
-   (nil? arglist) nil
-   (nil? (next arglist)) (seq (first arglist))
-   :else (cons (first arglist) (spread (next arglist)))))
-
 (defn ensure-seq [o max]
   (if (scalar? o) (repeat max o) o))
 
 (defn ensure-seqs [objs max]
   (map #(ensure-seq % max) objs))
-
-(defn zmap!
-  "Element-wise map over all elements of one or more arrays.
-   Performs in-place modification of the first array argument."
-  ([f m]
-    (element-map! m f))
-  ([f m a]
-    (element-map! m f (if (scalar? a) (repeat a) a) a))
-  ([f m a & more]
-     (element-map! m f a more)))
-
-
-(defn wrap-ctx-fn!
-  ([f]
-     (fn ctx-fn [[m coords el]]
-       (let [new-el (f el)]
-         (.set-nd! m coords new-el)
-         new-el)))
-  ([f a]
-     (fn ctx-fn-a [[m coords el] a]
-       (let [new-el (f el a)]
-;;         (println (format "Setting: %s -->%s at coords: %s" el new-el (vec coords)))
-         (.set-nd! m coords new-el)
-         new-el)))
-  ([f a more]
-     (fn ctx-fn-a-more [[m coords el] a more]
-       (let [new-el (apply f el a more)]
-;;         (println (format "Setting: %s -->%s at coords: %s" el new-el (vec coords)))
-         (.set-nd! m coords new-el)
-         new-el))))
-
-(defn lazy-ctx-seq
-  "Same as lazy-eseq, but returns a vector of the context of [array coords element]
-for each element"
-  ([m] (lazy-ctx-seq m (long-array (:bottom-ranges (.domain m)))))
-  ([m ^longs coords]
-     (let [domain (.domain m)
-           bottom-ranges (longs (:bottom-ranges domain))
-           top-ranges (longs (:top-ranges domain))
-           shape (long-array (shape-from-ranges bottom-ranges top-ranges))
-           rank (long (count shape))
-           ridx (long-array (reverse (range rank)))
-           last-dim (long (aget ridx 0))]
-       (lazy-ctx-seq m coords bottom-ranges top-ranges rank ridx last-dim)))
-  ([m ^longs coords bottom-ranges top-ranges rank ridx last-dim]
-     (let [el (.get-nd m coords)
-           ctx [m coords el]
-           inc-coords (fn inc-coords []
-                        (ainc-long coords last-dim)
-                        (dotimes [i rank]
-                          (let [dim (aget ridx i)]
-                            (when (a== coords top-ranges dim)
-                              (acopy coords bottom-ranges dim)
-                              (when-not (zero? dim)
-                                (ainc-long coords (dec dim)))))) coords)]
-             (cons ctx (if (every? true? (map #(== %1 (dec %2)) coords top-ranges))
-                        nil
-                        (lazy-seq (lazy-ctx-seq m (inc-coords)
-                                             bottom-ranges top-ranges
-                                             rank ridx last-dim)))))))
 
 (defn lazy-slice-seq
   ([m]
@@ -136,53 +116,6 @@ for each element"
   ([m idx stop]
      (if (= idx stop) nil
          (cons (.get-slice m 0 idx) (lazy-seq (lazy-slice-seq m (inc idx) stop))))))
-
-(deftype ArrayspaceMatrixSeq
-    [array ^Long idx]
-
-  clojure.lang.IPersistentCollection
-  (empty [this] ())
-  (cons [this o] (clojure.lang.Cons o this))
-  (equiv [this o] (.equals array o))
-
-  java.util.Collection
-  (contains [this o] (boolean (some #(= % o) this)))
-  (containsAll [this c] (every? #(.contains this %) c))
-  (isEmpty [_] (zero? (int (- (count array) idx))))
-  (toArray [this] (into-array Object this))
-  (toArray [this arr]
-    (if (>= (count arr) (int (- (count array) idx)))
-      (do
-        (dotimes [i (int (- (count array) idx))]
-          (aset arr i (.nth array i)))
-        arr)
-      (into-array Object this)))
-  (size [_] (int (- (count array) idx)))
-  (add [_ o] (throw (UnsupportedOperationException.)))
-  (addAll [_ c] (throw (UnsupportedOperationException.)))
-  (clear [_] (throw (UnsupportedOperationException.)))
-  (^boolean remove [_ o] (throw (UnsupportedOperationException.)))
-  (removeAll [_ c] (throw (UnsupportedOperationException.)))
-  (retainAll [_ c] (throw (UnsupportedOperationException.)))
-
-  clojure.lang.Sequential
-  clojure.lang.Seqable
-  (seq [this] this)
-
-  clojure.lang.ISeq
-  (first [this] (.get-slice array 0 idx))
-  (next [this] (if (>= idx (.count array)) nil
-                   (ArrayspaceMatrixSeq. array (inc idx))))
-  (more [this] (if (>= idx (.count array)) ()
-                   (ArrayspaceMatrixSeq. array (inc idx))))
-
-  clojure.lang.IndexedSeq
-  (index [this] idx)
-
-  clojure.lang.Counted
-  (count [this]
-    (int (- (count array) idx))))
-
 (deftype ArrayspaceMatrix
     [implementation-key multi-array-key domain domain-map distribution element-type]
 
@@ -233,11 +166,9 @@ for each element"
 
   clojure.lang.Sequential
   clojure.lang.Seqable
+
   (seq [m]
-    ;;(map (fn [idx] (get-slice m 0 idx)) (range (first (shape m))))
-    ;;(ArrayspaceMatrixSeq. m 0)
-    (lazy-slice-seq m)
-    )
+    (lazy-slice-seq m))
 
   Domain
   (shape [m] (vec (shape domain)))
@@ -249,7 +180,6 @@ for each element"
    [m data]
    (if (instance? ArrayspaceMatrix data) (.clone data)
        (let [vdata (convert-to-nested-vectors data)
-             ;;_ (println (format "vdata: %s" vdata))
              flat-data (vec (flatten vdata))
              data-shape (get-shape vdata)]
          (when (empty? data-shape)
@@ -383,6 +313,7 @@ for each element"
       (let [eseq (element-seq m)
             s (shape m)]
         ;;if no shape (scalar value) wrap in vec
+        ;;XXX--not necessary? Shouldn't get dispatched here if a scalar value
         (if-not (count s) (vec eseq)
                 (loop [countdown (count s) revshapes (reverse s) accum eseq]
                   (if (zero? countdown) (first accum)
@@ -433,17 +364,14 @@ for each element"
   (element-map
     ;;Maps f over all elements of m (and optionally other matrices), returning a new matrix
     ([m f]
-       ;;(map f (element-seq m))
        (let [new-m (.clone m)]
          (do-elements! new-m f)
          new-m))
     ([m f a]
-       ;;(map f (element-seq m) (ensure-seq a (ecount m)))
        (let [new-m (.clone m)]
          (do-elements! new-m f a)
          new-m))
     ([m f a more]
-       ;;(apply element-seq f m (ensure-seq a (ecount m)))
        (let [new-m (.clone m)]
          (do-elements! new-m f a more)
          new-m)))
@@ -451,25 +379,11 @@ for each element"
   (element-map!
     ;; Maps f over all elements of m (and optionally other matrices), mutating the elements of m in place.
     ;; Must throw an exception if m is not mutable.
-
     ([m f]
-       ;;(doall (map (wrap-ctx-fn! f) (lazy-ctx-seq m)))
        (do-elements! m f) m)
     ([m f a]
-       ;;(doall (map (wrap-ctx-fn! f a) (lazy-ctx-seq m) (ensure-seq a (ecount m))))
        (do-elements! m f a) m)
     ([m f a more]
-       ;; (let [max (ecount m)
-       ;;       msq (lazy-ctx-seq m)
-       ;;       em-f (wrap-ctx-fn! f a more)
-       ;;       em-a1 (ensure-seq a max)
-       ;;       em-arest (ensure-seqs more max)
-       ;;       mfn (fn mfn [idx ef msq a1 arest]
-       ;;             (if (= idx 0) nil
-       ;;                 (cons (ef (first msq) (first a1) (vec (map first arest)))
-       ;;                       (lazy-seq (mfn (dec idx) ef (rest msq) (rest a1) (map rest arest))))))]
-       ;; (doall (mfn max em-f msq em-a1 em-arest))
-
        (do-elements! m f a more) m))
 
   (element-reduce
@@ -521,13 +435,6 @@ for each element"
 
 (defn map-elements [m el-fn]
   (map el-fn (element-seq m)))
-
-(defn maybe-coerce-data [m param]
-  (cond
-   (instance? ArrayspaceMatrix param) (.clone m)
-   (array? param) (convert-to-nested-vectors param)
-   (is-scalar? param) (convert-to-nested-vectors param)
-   :default nil))
 
 (defn make-arrayspace-matrix
   [impl-kw multi-array-kw & {:keys [shape element-type data offset strides distribution partition-count]}]
