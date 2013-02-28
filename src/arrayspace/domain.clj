@@ -36,7 +36,7 @@
   (long-array (map #(if (vector? %) (nth % 1) %) shape)))
 
 (defmacro do-elements-loop
-  [m coords idx el & body]
+  [[m coords idx el as ar] & body]
   (let [coords (sym-typed coords longs)
         idx (sym-long idx)
         domain (gensym 'domain)
@@ -47,7 +47,10 @@
         elcount (gensym-long 'elcount)
         last-dim (gensym-int 'last-dim)
         ridx (gensym-typed 'ridx longs)
-        dim (gensym-long 'dim)]
+        dim (gensym-long 'dim)
+        argseq (gensym 'argseq)
+        args (gensym 'args)
+        ]
     (letfn [(inc-last-coords []
               `(aset ~coords ~last-dim
                      (unchecked-inc (aget ~coords ~last-dim))))
@@ -66,13 +69,18 @@
              ~coords (long-array ~bottom-ranges)
              ~ridx (long-array (reverse (range ~rank)))
              ~last-dim (aget ~ridx 0)]
-         (dotimes [~idx ~elcount]
-           (let [~el (.get-nd ~m ~coords)]
-             ~@body
-             ~(inc-last-coords)
-             (dotimes [~dim ~rank]
-               (when ~(dim-at-max?)
-                 ~(roll-idx) (when-not ~(top-dim?) ~(carry-idx))))))))))
+         (loop [~idx 0 ~argseq ~as]
+           (if (== ~idx ~elcount) nil
+               (let [~el (.get-nd ~m ~coords)
+                     ~ar (when ~argseq (vec (map first ~argseq)))]
+                 ;;(println (format "idx: %s elcount: %s, ~argseq: %s, args: %s" ~idx ~elcount ~argseq ~ar))
+                 ~@body
+                 ;;(try ~@body (catch Exception ex# (do (clojure.stacktrace/print-stack-trace ex#) (throw ex#))))
+                 ~(inc-last-coords)
+                 (dotimes [~dim ~rank]
+                   (when ~(dim-at-max?)
+                     ~(roll-idx) (when-not ~(top-dim?) ~(carry-idx))))
+                 (recur (inc ~idx) (if ~argseq (vec (map rest ~argseq)) nil)))))))))
 
 (defn flatten-coords [coords shape offset]
   "Flatten the coordinates in a multidimensional space to 1d"

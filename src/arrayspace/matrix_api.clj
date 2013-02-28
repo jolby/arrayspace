@@ -64,12 +64,12 @@
    (nil? (next arglist)) (seq (first arglist))
    :else (cons (first arglist) (spread (next arglist)))))
 
-(defn ensure-seq [o max] 
+(defn ensure-seq [o max]
   (if (scalar? o) (repeat max o) o))
 
-(defn ensure-seqs [objs max] 
+(defn ensure-seqs [objs max]
   (map #(ensure-seq % max) objs))
-             
+
 (defn zmap!
   "Element-wise map over all elements of one or more arrays.
    Performs in-place modification of the first array argument."
@@ -90,11 +90,13 @@
   ([f a]
      (fn ctx-fn-a [[m coords el] a]
        (let [new-el (f el a)]
+;;         (println (format "Setting: %s -->%s at coords: %s" el new-el (vec coords)))
          (.set-nd! m coords new-el)
          new-el)))
   ([f a more]
      (fn ctx-fn-a-more [[m coords el] a more]
        (let [new-el (apply f el a more)]
+;;         (println (format "Setting: %s -->%s at coords: %s" el new-el (vec coords)))
          (.set-nd! m coords new-el)
          new-el))))
 
@@ -429,30 +431,46 @@ for each element"
   (element-seq [m] (lazy-eseq m))
 
   (element-map
+    ;;Maps f over all elements of m (and optionally other matrices), returning a new matrix
     ([m f]
-       (map f (element-seq m)))
+       ;;(map f (element-seq m))
+       (let [new-m (.clone m)]
+         (do-elements! new-m f)
+         new-m))
     ([m f a]
-       (map f (element-seq m) (if (scalar? a) (repeat a) a)))
+       ;;(map f (element-seq m) (ensure-seq a (ecount m)))
+       (let [new-m (.clone m)]
+         (do-elements! new-m f a)
+         new-m))
     ([m f a more]
-       (apply element-seq f m (if (scalar? a) (repeat a) a) more)))
+       ;;(apply element-seq f m (ensure-seq a (ecount m)))
+       (let [new-m (.clone m)]
+         (do-elements! new-m f a more)
+         new-m)))
 
   (element-map!
-    ;;Apply fn to all elements in m, setting that element to the result in-place
+    ;; Maps f over all elements of m (and optionally other matrices), mutating the elements of m in place.
+    ;; Must throw an exception if m is not mutable.
+
     ([m f]
-       (map (wrap-ctx-fn! f) (lazy-ctx-seq m)))
+       ;;(doall (map (wrap-ctx-fn! f) (lazy-ctx-seq m)))
+       (do-elements! m f) m)
     ([m f a]
-       (map (wrap-ctx-fn! f a) (lazy-ctx-seq m) (if (scalar? a) (repeat a) a)))
+       ;;(doall (map (wrap-ctx-fn! f a) (lazy-ctx-seq m) (ensure-seq a (ecount m))))
+       (do-elements! m f a) m)
     ([m f a more]
-       (let [max (ecount m)
-             msq (lazy-ctx-seq m)
-             em-f (wrap-ctx-fn! f a more)
-             em-a1 (ensure-seq a max)
-             em-arest (ensure-seqs more max)
-             mfn (fn mfn [idx ef msq a1 arest]
-                   (if (= idx 0) nil                      
-                       (cons (ef (first msq) (first a1) (vec (map first arest)))
-                             (lazy-seq (mfn (dec idx) ef (rest msq) (rest a1) (map rest arest))))))]
-         (mfn max em-f msq em-a1 em-arest))))
+       ;; (let [max (ecount m)
+       ;;       msq (lazy-ctx-seq m)
+       ;;       em-f (wrap-ctx-fn! f a more)
+       ;;       em-a1 (ensure-seq a max)
+       ;;       em-arest (ensure-seqs more max)
+       ;;       mfn (fn mfn [idx ef msq a1 arest]
+       ;;             (if (= idx 0) nil
+       ;;                 (cons (ef (first msq) (first a1) (vec (map first arest)))
+       ;;                       (lazy-seq (mfn (dec idx) ef (rest msq) (rest a1) (map rest arest))))))]
+       ;; (doall (mfn max em-f msq em-a1 em-arest))
+
+       (do-elements! m f a more) m))
 
   (element-reduce
     ([m f]
@@ -475,27 +493,28 @@ for each element"
   (let [rep {:array (.convert-to-nested-vectors m)
              :shape (.shape m)}]
       (.write w "#ArrayspaceMatrix")
-      (print-method rep w)
-      ;; (.write w "{:domain ")
-      ;; (print-method (.domain m) w)
-      ;; (.write w ", :domain-map ")
-      ;; (print-method (.domain-map m) w)
-      ;; (.write w ", :distribution ")
-      ;; (print-method (.distribution m) w)
-      ;; (.write w ", :element-type ")
-      ;; (print-method (.element-type m) w)
-    ))
+      (print-method rep w)))
 
 (defmethod print-method ArrayspaceMatrix [m w]
   (print-arrayspace-matrix m w))
 
 (defn do-elements!
-  [m el-fn]
-  (do-elements-loop m coords idx el
-                    (set-nd m coords (el-fn el))))
+  ([m el-fn]
+     (let [as nil]
+       (do-elements-loop [m coords idx el as a]
+                         (.set-nd! m coords (el-fn el)))))
+  ([m el-fn a]
+     (let [as (ensure-seqs [a] (ecount m))]
+       (do-elements-loop [m coords idx el as a]
+                         (.set-nd! m coords (apply el-fn el a)))))
+  ([m el-fn a & more]
+     (let [as (ensure-seqs (cons a more) (ecount m))]
+       (do-elements-loop [m coords idx el as a]
+                         (.set-nd! m coords (apply el-fn el a))))))
 
 (defn do-elements-indexed [m el-fn]
-  (do-elements-loop m coords idx el (el-fn idx el)))
+  (let [aseq [[1 2 3] [4 5 6]]]
+    (do-elements-loop [m coords idx el aseq a] (el-fn idx el))))
 
 (defn do-elements [m el-fn]
   (do-elements-indexed m (fn [idx el] (el-fn el))))
