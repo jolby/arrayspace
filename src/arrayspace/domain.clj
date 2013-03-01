@@ -43,6 +43,7 @@
   "Flatten the coordinates represented as long array in a multidimensional
 space to 1d"
   (check-valid-coords coords shape)
+  ;;(println (format "offset: %s" offset))
   (+ offset (reduce + (map * coords strides))))
 
 (defrecord OrdinalDomain
@@ -59,6 +60,19 @@ space to 1d"
   (strides [this] strides)
   (offset [this] offset))
 
+(defrecord TransposedLocalBlockDomainMap
+    [domain distribution offset strides]
+  DomainMap
+  (transform-coords [this coords]
+    (let [;;tc (flatten-coords-array (long-array (reverse coords)) (shape domain) strides offset)
+          tc (flatten-coords-array coords (shape domain) strides offset)
+          ]
+      ;;(println (format "### coords: %s rcoords: %s, strides: %s tc: %s"
+      ;;                 (vec (long-array (reverse coords))) (vec coords) (vec strides) tc))
+      tc))
+  (strides [this] strides)
+  (offset [this] offset))
+
 (defmethod make-domain :default
   [type-kw  & {:keys [shape]}]
   (let [nshape (normalize-shape shape)
@@ -71,9 +85,18 @@ space to 1d"
 (defmethod make-domain-map :default
   [type-kw  & {:keys [domain distribution offset strides]}]
   {:pre [(not-any? nil? '(domain distribution))]}
+  ;;(println (format "make-domain-map offset: %s" offset))
   (LocalBlockDomainMap. domain distribution
                         (or offset 0)
                         (long-array (or strides (strides-of-shape (shape domain))))))
+
+(defmethod make-domain-map :transposed
+  [type-kw  & {:keys [domain distribution offset strides]}]
+  {:pre [(not-any? nil? '(domain distribution))]}
+  ;;(println (format "make-domain-map offset: %s" offset))
+  (TransposedLocalBlockDomainMap. domain distribution
+                        (or offset 0)
+                        (long-array (or strides (reverse (strides-of-shape (shape domain)))))))
 
 (defn- print-ordinal-domain
   [d #^java.io.Writer w]
@@ -93,14 +116,19 @@ space to 1d"
 
 (defn- print-domain-map
   [d #^java.io.Writer w]
-  (.write w "#:DomainMap")
+  (.write w (str "#:" (type d)))
   (.write w "{:offset ")
   (print-method (.offset d) w)
   (.write w ", :strides ")
   (print-method (vec (.strides d)) w)
-  (.write w ", :distribution ")
-  (print-method (.distribution d) w)
+  (.write w ", :shape ")
+  (print-method (vec (.shape (.domain d))) w)
+  ;;(.write w ", :distribution ")
+  ;;(print-method (.distribution d) w)
   (.write w "}"))
 
 (defmethod print-method LocalBlockDomainMap [d w]
+  (print-domain-map d w))
+
+(defmethod print-method TransposedLocalBlockDomainMap [d w]
   (print-domain-map d w))

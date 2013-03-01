@@ -14,6 +14,7 @@
    [clojure.core.matrix.protocols :refer :all]
    [clojure.core.matrix :refer [scalar? array? ecount]]
    [clojure.core.matrix.implementations :as imp]
+   [clojure.core.matrix.impl.wrappers :refer [wrap-scalar]]
    [clojure.core.matrix.impl.persistent-vector]))
 
 (declare make-arrayspace-matrix do-elements do-elements-indexed do-elements!)
@@ -171,8 +172,8 @@
     (lazy-slice-seq m))
 
   Domain
-  (shape [m] (vec (shape domain)))
-  (rank [m] (rank domain))
+  (shape [m] (.shape domain))
+  (rank [m] (.rank domain))
 
   PImplementation
   (implementation-key [m] implementation-key)
@@ -229,7 +230,7 @@
   PIndexedAccess
   (get-1d [m row]
           (assert (= (rank domain) 1))
-          (.get-flat distribution row))
+          (.get-flat distribution (transform-coords domain-map [row])))
   (get-2d [m row column]
           (assert (= (rank domain) 2))
           (.get-flat distribution (transform-coords domain-map [row column])))
@@ -256,7 +257,7 @@
   PIndexedSettingMutable
   (set-1d! [m row v]
     (assert (= (rank domain) 1))
-    (.set-flat! distribution row v)
+    (.set-flat! distribution row (transform-coords domain-map [row]))
     m)
   (set-2d! [m row column v]
     (assert (= (rank domain) 2))
@@ -269,14 +270,14 @@
   PMatrixSlices
   (get-row [m i]
     (assert (= (rank domain) 2))
-    (get-slice m 0 i))
+    (.get-slice m 0 i))
 
   (get-column [m i]
     (assert (= (rank domain) 2))
-    (get-slice m 1 i))
+    (.get-slice m 1 i))
 
   (get-major-slice [m i]
-    (get-slice m 0 i))
+    (.get-slice m 0 i))
 
   (get-slice [m dimension i]
     {:pre [(and (>= dimension 0) (>= (dec (rank m)) dimension))]}
@@ -285,16 +286,21 @@
           new-strides (adel strides dimension)]
       (if (empty? new-shape)
         ;;rank0 array == scalar value at index i
-        (.get-flat distribution i)
+        ;;(wrap-scalar (.get-flat distribution i))
+        ;;(.get-flat distribution i)
+        (.get-flat distribution (transform-coords domain-map [i]))
         ;;rank - dim+1 array
-        (make-arrayspace-matrix
-         implementation-key
-         multi-array-key
-         :shape new-shape
-         :element-type element-type
-         :offset (* (nth strides dimension) i)
-         :strides (vec new-strides)
-         :distribution distribution))))
+        (let [offset (+ (:offset domain-map) (* (nth strides dimension) i))
+              m (make-arrayspace-matrix
+                 implementation-key
+                 multi-array-key
+                 :shape new-shape
+                 :element-type element-type
+                 :offset offset
+                 :strides (vec new-strides)
+                 :distribution distribution)]
+          m
+          ))))
 
   PMatrixCloning
   (clone [m]
@@ -333,10 +339,8 @@
 
   PMatrixAdd
   (matrix-add [m a]
-    (assert (= (dimensionality m) 2))
     (element-map m + a))
   (matrix-sub [m a]
-    (assert (= (dimensionality m) 2))
     (element-map m - a))
 
   PSummable
@@ -392,20 +396,70 @@
     ([m f init]
        (reduce f init (element-seq m)))))
 
-;; (extend-protocol PAssignment
-;;   ArrayspaceMatrix
+ (extend-protocol PAssignment
+   ArrayspaceMatrix
 ;;   (assign!
 ;;     ([m source] nil))
 
-;;   (assign-array!
-;;     ([m arr] nil)
-;;     ([m arr start length] nil)))
+   (assign-array!
+     ([m arr]
+        (arrayspace.distribution/set-data-flat! (.distribution m) (vec arr)))
+     ([m arr start length]
+        (arrayspace.distribution/set-data-flat! (.distribution m) (subvec (vec arr) start length)))))
 
+;; generic versions of matrix ops
+(extend-protocol PMatrixOps
+  ArrayspaceMatrix
+    (trace [m]
+      (when-not (== 2 (dimensionality m)) (throw (Exception.  "Trace requires a 2D matrix")))
+      (let [rc (dimension-count m 0)
+            cc (dimension-count m 1)
+            dims (long rc)]
+        (when-not (== rc cc) (throw (Exception.  "Can't compute trace of non-square matrix")))
+        (loop [i 0 res 0.0]
+          (if (>= i dims)
+            res
+            (recur (inc i) (+ res (double (get-2d m i i))))))))
+    (negate [m]
+      (scale m -1.0))
+    (length-squared [m]
+      (element-reduce #(+ %1 (* %2 *2)) 0.0 m))
+    (length [m]
+      (Math/sqrt (length-squared m)))
+    (transpose [m]
+      (case (long (dimensionality m))
+        0 m
+        1 m
+        2 (coerce-param m (apply mapv vector (map
+                                                  #(coerce-param [] %)
+                                                  (get-major-slice-seq m))))
+        (let [;;_ (println "XXX--got to transpose")
+              d (make-domain :default :shape (shape m))
+              ;;_ (println "XXX--got to transpose 1")
+              dm (make-domain-map :transposed
+                                  :domain d
+                                  :distribution (.distribution m)
+                                  :offset (.offset (.domain-map m)))]
+          (make-arrayspace-matrix
+           (.implementation-key m)
+           (.multi-array-key m)
+           :element-type (.element-type m)
+           :distribution (.distribution m)
+           :domain d
+           :domain-map dm
+           :offset (.offset dm))
+
+
+        ;; (coerce-param m
+        ;;   (let [ss (map transpose (get-major-slice-seq m))]
+        ;;     ;; note than function must come second for mp/element-map
+        ;;     (apply element-map (first ss) convert-to-nested-vectors (next ss))))
+        ))))
 
 (defn- print-arrayspace-matrix
   [m #^java.io.Writer w]
   (let [rep {:array (.convert-to-nested-vectors m)
-             :shape (.shape m)}]
+             :shape (vec (.shape m))}]
       (.write w "#ArrayspaceMatrix")
       (print-method rep w)))
 
@@ -437,23 +491,25 @@
   (map el-fn (element-seq m)))
 
 (defn make-arrayspace-matrix
-  [impl-kw multi-array-kw & {:keys [shape element-type data offset strides distribution partition-count]}]
+  [impl-kw multi-array-kw & {:keys [shape element-type data offset strides domain domain-map distribution partition-count] :as arrkw}]
   ;;{:pre [(if data (>= (element-count-of-shape shape) (clojure.core.matrix/shape data)) true)]}
+  ;;(println (format "make-arrayspace-matrix offset: %s" offset))
+  ;;(println (format "make-arrayspace-matrix kw: %s" arrkw))
   (when data
     (when-not (>= (element-count-of-shape shape) (ecount data))
       (println (format "XXX--ecount shape NOT >= shape of data! %s %s %s" shape (element-count-of-shape shape) (ecount data)))))
   (let [resolved-type (if data (resolve-type-from-data data) (resolve-type element-type))
-        domain (make-domain multi-array-kw :shape shape)
+        domain (or domain (make-domain multi-array-kw :shape shape))
         distribution (or distribution (make-distribution multi-array-kw
                                                    :element-type resolved-type
                                                    :element-count (element-count-of-shape (.shape domain))
                                                    :partition-count (or partition-count 1)
                                                    :data data))
-        domain-map (make-domain-map :default
+        domain-map (or domain-map (make-domain-map :default
                                     :domain domain
                                     :distribution distribution
                                     :offset (or offset 0)
-                                    :strides strides)]
+                                    :strides strides))]
     (when-not (instance? Class resolved-type)
       (println (format "XXX-- resolved-type: %s, type: %s" resolved-type (type resolved-type)))
       (throw (IllegalArgumentException. (str "param resolved-type not class: " resolved-type ", type: " (type resolved-type)))))
