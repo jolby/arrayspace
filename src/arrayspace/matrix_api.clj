@@ -106,7 +106,10 @@
                                              bottom-ranges top-ranges
                                              rank ridx last-dim)))))))
 (defn ensure-seq [o max]
-  (if (scalar? o) (repeat max o) o))
+  (cond
+   (scalar? o) (repeat max o)
+   (array? o) (element-seq o)
+   :else o))
 
 (defn ensure-seqs [objs max]
   (map #(ensure-seq % max) objs))
@@ -117,6 +120,7 @@
   ([m idx stop]
      (if (= idx stop) nil
          (cons (.get-slice m 0 idx) (lazy-seq (lazy-slice-seq m (inc idx) stop))))))
+
 (deftype ArrayspaceMatrix
     [implementation-key multi-array-key domain domain-map distribution element-type]
 
@@ -257,7 +261,7 @@
   PIndexedSettingMutable
   (set-1d! [m row v]
     (assert (= (rank domain) 1))
-    (.set-flat! distribution row (transform-coords domain-map [row]))
+    (.set-flat! distribution (transform-coords domain-map [row]) v)
     m)
   (set-2d! [m row column v]
     (assert (= (rank domain) 2))
@@ -348,10 +352,17 @@
     (element-reduce m +))
 
   PMatrixMultiply
-  (element-multiply [m a]
-    (element-map m * a))
   (matrix-multiply [m a]
-    (element-map m * a))
+    (coerce-param m (matrix-multiply
+                        (coerce-param [] m)
+                        (coerce-param [] a))))
+  (element-multiply [m a]
+    (element-map m clojure.core/* a))
+
+  ;; (element-multiply [m a]
+  ;;   (element-map m * a))
+  ;; (matrix-multiply [m a]
+  ;;   (element-map m * a))
 
   PMatrixScaling
   (scale [m a]
@@ -431,15 +442,15 @@
         0 m
         1 m
         2 (coerce-param m (apply mapv vector (map
-                                                  #(coerce-param [] %)
-                                                  (get-major-slice-seq m))))
-        (let [;;_ (println "XXX--got to transpose")
-              d (make-domain :default :shape (shape m))
-              ;;_ (println "XXX--got to transpose 1")
+                                              #(coerce-param [] %)
+                                              (get-major-slice-seq m))))
+
+        (let [d (make-domain :default :shape (shape m))
               dm (make-domain-map :transposed
                                   :domain d
                                   :distribution (.distribution m)
                                   :offset (.offset (.domain-map m)))]
+
           (make-arrayspace-matrix
            (.implementation-key m)
            (.multi-array-key m)
@@ -447,19 +458,13 @@
            :distribution (.distribution m)
            :domain d
            :domain-map dm
-           :offset (.offset dm))
-
-
-        ;; (coerce-param m
-        ;;   (let [ss (map transpose (get-major-slice-seq m))]
-        ;;     ;; note than function must come second for mp/element-map
-        ;;     (apply element-map (first ss) convert-to-nested-vectors (next ss))))
-        ))))
+           :offset (.offset dm))))))
 
 (defn- print-arrayspace-matrix
   [m #^java.io.Writer w]
   (let [rep {:array (.convert-to-nested-vectors m)
-             :shape (vec (.shape m))}]
+             :shape (vec (.shape m))
+             :element-type (.element-type m)}]
       (.write w "#ArrayspaceMatrix")
       (print-method rep w)))
 
@@ -481,11 +486,11 @@
                          (.set-nd! m coords (apply el-fn el a))))))
 
 (defn do-elements-indexed [m el-fn]
-  (let [aseq [[1 2 3] [4 5 6]]]
-    (do-elements-loop [m coords idx el aseq a] (el-fn idx el))))
+  (let [as nil]
+    (do-elements-loop [m coords idx el as a] (el-fn idx el))))
 
 (defn do-elements [m el-fn]
-  (do-elements-indexed m (fn [idx el] (el-fn el))))
+  (do-elements-indexed m (fn [_ el] (el-fn el))))
 
 (defn map-elements [m el-fn]
   (map el-fn (element-seq m)))
